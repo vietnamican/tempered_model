@@ -156,9 +156,6 @@ class Fusion2(Base):
         if mode == 'training':
             if block_index == -1:
                 y, y1, y2, y3, y4, y5 = self.orig_model(x)
-                _y1 = self.block1(x)
-                _y2 = self.block2(self.maxpool(y1))
-                _y3 = self.block3(self.maxpool(y2))
                 _y4 = self.block4(self.maxpool(y3))
                 _y5 = self.block5(self.maxpool(y4))
                 return _y4, _y5, y4, y5
@@ -203,7 +200,6 @@ class Fusion2(Base):
     def test_step(self, batch, batch_idx):
         x, y = batch
         logit = self.forward(x)
-        print(logit.shape)
         loss = self.test_criterion(logit, y)
         pred = logit.argmax(dim=1)
         self.log('test_loss', loss)

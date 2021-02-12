@@ -65,15 +65,14 @@ class Resnet50(Base):
         self.fc = nn.Linear(2048, 1000)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        return self.fc(x)
+        y = self.maxpool(self.conv1(x))
+        y1 = self.layer1(y)
+        y2 = self.layer2(y1)
+        y3 = self.layer3(y2)
+        y4 = self.layer4(y3)
+        y = self.avgpool(y4)
+        y = self.fc(torch.flatten(y, 1))
+        return y, y1, y2, y3, y4
     
     def migrate_from_torchvision(self, torch_vision_state_dict):
         def remove_num_batches_tracked(state_dict):
@@ -85,7 +84,7 @@ class Resnet50(Base):
 
         self_state_dict = remove_num_batches_tracked(self.state_dict())
         source_state_dict = remove_num_batches_tracked(torch_vision_state_dict)
-        
+
         with torch.no_grad():
             for i, ((name, p), (_name, _p)) in enumerate(zip(self_state_dict.items(), source_state_dict.items())):
                 if p.shape == _p.shape:
