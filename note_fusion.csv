@@ -1,0 +1,21 @@
+index;name;paramters reduce;accuracy diff;detail
+0;version_0;37056;-2.51%;fusion in block1, 64 layers, no learning_rate scheduler
+1;version_1;37056;-2.81%;fusion in block1, 64 layers, scheduler optim.MultiplicativeLR(0.9)
+2;version_2;26720;0.17%;fusion in block1, 128 layers + 64 layers projection, no learning_rate scheduler
+3;version_3;147840;-0.52%;fusion in block2, 128 layers, no learning_rate scheduler
+4;version_4;131072;0.36%;fusion in block2, 128 layers + 128 layers projection, no learning_rate scheduler
+5;version_5;65536;0.56%;fusion in block2, 128 layers projection + 128 layers, no learning_rate scheduler
+6;version_6;1181184;-1.95%;fusion in block3, 256 layers, no learning_rate scheduler
+7;version_7;590592;0.12%;fusion in block3, 256 layers + 256 layers, no learning_rate scheduler
+8;version_8;753664;-0.67%;fusion in block3, 512 layers + 256 layers projection, no learning_rate scheduler
+9;version_9;852736;-1.17%;fusion in block3, 256 layers projection + 256 layers, no learning_rate scheduler
+10;version_10;229376;-0.84%;fusion in block3, 512 layers projection + 256 layers, no learning_rate scheduler
+11;version_11;590592;0.31%;fusion in block3.1, 256 layers + 256 layers, no learning_rate scheduler
+12;version_12;2360832;1%;fusion in block4, 512 layers + 512 layers, no learning_rate scheduler
+13;version_13;2360832;1,32%;fusion in block4.1, 512 layers + 512 layers, no learning_rate scheduler
+14;version_14;3409408;1.02%;fusion in block4, 512 layers projection + 512 layers, no learning_rate scheduler
+15;version_15;2360832;1.07%;fusion in block5, 512 layers + 512 layers, no learning_rate scheduler
+16;version_16;2360832;0.88%;fusion in block5.1, 512 layers + 512 layers, no learning_rate scheduler
+17;version_17;4721664;1,15%;fusion in block5, 512 layers, no learning_rate scheduler
+18;version_18;7082496;1.49%;fusion in block5, 512 layers, no learning_rate scheduler\nfusion in block4.1, 512 layers + 512 layers, no learning_rate scheduler
+19;version_19;7673088;0.65%;fusion in block5, 512 layers, no learning_rate scheduler\nfusion in block4.1, 512 layers + 512 layers, no learning_rate scheduler\nfusion in block3.1, 256 layers + 256 layers, no learning_rate scheduler
