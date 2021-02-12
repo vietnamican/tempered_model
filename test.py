@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from torchsummary import summary
 
 from model import OriginalModel, VGG, FusionlModel, Fusion2
@@ -19,6 +20,7 @@ if __name__ == '__main__':
     #             "mult_adds"], depth=5)
 
     model = Resnet50()
+    # model = torchvision.models.resnet.resnet50()
     # tensor = torch.Tensor(1, 3, 32, 32)
     # model(tensor)
     # model = VGG()
@@ -26,10 +28,10 @@ if __name__ == '__main__':
         model,
         (3, 32, 32),
         col_names=[
-            "input_size",
-            "output_size",
+            # "input_size",
+            # "output_size",
             "num_params",
-            # "kernel_size",
+            "kernel_size",
             # "mult_adds"
         ],
         depth=5)

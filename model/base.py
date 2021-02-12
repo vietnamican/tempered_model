@@ -46,14 +46,24 @@ class Base(pl.LightningModule):
             self,
             state_dict: Dict
     ):
+        def remove_num_batches_tracked(state_dict):
+            new_state_dict = {}
+            for name, p in state_dict.items():
+                if not 'num_batches_tracked' in name:
+                    new_state_dict[name] = p
+            return new_state_dict
+            
+        self_state_dict = remove_num_batches_tracked(self.state_dict())
+        state_dict = remove_num_batches_tracked(state_dict)
+
         state_dict_keys = state_dict.keys()
         with torch.no_grad():
-            for i, (name, p) in enumerate(self.state_dict().items()):
+            for i, (name, p) in enumerate(self_state_dict.items()):
                 if name in state_dict_keys:
-                    p_ = state_dict[name]
-                    if p.data.shape == p_.shape:
+                    _p = state_dict[name]
+                    if p.data.shape == _p.shape:
                         print(i, name)
-                        p.copy_(p_)
+                        p.copy_(_p)
 
     def remove_prefix_state_dict(
             self,

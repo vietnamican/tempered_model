@@ -1,19 +1,8 @@
 import torch
 from torch import nn
 
-
 from ..base import Base, ConvBatchNormRelu
 
-
-def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
-    """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
-
-
-def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
-    """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 class Bottleneck(Base):
     bottle_ratio = 4
@@ -29,9 +18,9 @@ class Bottleneck(Base):
         bottleneck_plane = outplanes // 4
         self.cbr1 = ConvBatchNormRelu(inplanes, bottleneck_plane, kernel_size=1, padding=0, bias=False)
         self.cbr2 = ConvBatchNormRelu(bottleneck_plane, bottleneck_plane, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.cbr3 = ConvBatchNormRelu(bottleneck_plane, outplanes, kernel_size=1, padding=0, with_relu=False, bias=False)
         if downsample:
             self.identity_layer = ConvBatchNormRelu(inplanes, outplanes, kernel_size=1, padding=0, stride=stride, with_relu=False, bias=False)
-        self.cbr3 = ConvBatchNormRelu(bottleneck_plane, outplanes, kernel_size=1, padding=0, with_relu=False, bias=False)
         self.relu = nn.ReLU(inplace=True)
     def forward(self, x):
         identity = x
@@ -84,6 +73,21 @@ class Resnet50(Base):
         x = self.layer4(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = self.fc(x)
+        return self.fc(x)
     
-    def 
+    def migrate_from_torchvision(self, torch_vision_state_dict):
+        def remove_num_batches_tracked(state_dict):
+            new_state_dict = {}
+            for name, p in state_dict.items():
+                if not 'num_batches_tracked' in name:
+                    new_state_dict[name] = p
+            return new_state_dict
+
+        self_state_dict = remove_num_batches_tracked(self.state_dict())
+        source_state_dict = remove_num_batches_tracked(torch_vision_state_dict)
+        
+        with torch.no_grad():
+            for i, ((name, p), (_name, _p)) in enumerate(zip(self_state_dict.items(), source_state_dict.items())):
+                if p.shape == _p.shape:
+                    print(i, 'copy to {} from {}'.format(name, _name))
+                    p.copy_(_p)
