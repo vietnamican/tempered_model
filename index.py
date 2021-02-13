@@ -43,7 +43,7 @@ if __name__ == '__main__':
     model = OriginalModel()
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
-        name='original_logs',
+        name='original2_logs',
         log_graph=True,
     )
     loss_callback = ModelCheckpoint(

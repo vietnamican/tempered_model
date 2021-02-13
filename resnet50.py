@@ -23,4 +23,4 @@ if __name__ == '__main__':
     out1 = resnet50(inp)
     out2 = model(inp)
     # if true, the rewrite code is right
-    print(torch.allclose(out1, out2))
+    print(torch.allclose(out1, out2[0]))

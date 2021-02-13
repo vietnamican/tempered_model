@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import pytorch_lightning as pl
 
 from ..base import Base, ConvBatchNormRelu
 
@@ -62,17 +63,63 @@ class Resnet50(Base):
             Bottleneck(2048, 2048)
         )
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(2048, 1000)
+        self.fc = nn.Linear(2048, 10)
+        self.criterion = nn.CrossEntropyLoss()
+        self.accuracy = pl.metrics.Accuracy()
+        self.val_accuracy = pl.metrics.Accuracy()
 
-    def forward(self, x):
-        y = self.maxpool(self.conv1(x))
-        y1 = self.layer1(y)
-        y2 = self.layer2(y1)
-        y3 = self.layer3(y2)
-        y4 = self.layer4(y3)
-        y = self.avgpool(y4)
-        y = self.fc(torch.flatten(y, 1))
-        return y, y1, y2, y3, y4
+    def forward(self, x, mode='eval'):
+        if mode == 'training':
+            x = self.maxpool(self.conv1(x))
+            x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+            x = self.avgpool(x)
+            return self.fc(torch.flatten(x, 1))
+        else:
+            y = self.maxpool(self.conv1(x))
+            y1 = self.layer1(y)
+            y2 = self.layer2(y1)
+            y3 = self.layer3(y2)
+            y4 = self.layer4(y3)
+            y = self.avgpool(y4)
+            y = self.fc(torch.flatten(y, 1))
+            return y, y1, y2, y3, y4
+    
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        logit, _, _, _, _ = self.forward(x)
+        loss = self.criterion(logit, y)
+        pred = logit.argmax(dim=1)
+        self.log('train_loss', loss)
+        self.log('train_acc_step', self.accuracy(pred, y))
+        return loss
+
+    def training_epoch_end(self, outs):
+        self.log('train_acc_epoch', self.accuracy.compute())
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        logit, _, _, _, _ = self.forward(x)
+        loss = self.criterion(logit, y)
+        pred = logit.argmax(dim=1)
+        self.log('val_loss', loss)
+        self.log('val_acc_step', self.val_accuracy(pred, y))
+        return loss
+
+    def validation_epoch_end(self, outs):
+        self.log('val_acc_epoch', self.val_accuracy.compute())
+
+    def configure_optimizers(self):
+        # optimizer = torch.optim.SGD(self.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+        optimizer =  torch.optim.SGD(self.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
+
+    def get_progress_bar_dict(self):
+        items = super().get_progress_bar_dict()
+        items.pop('v_num', None)
+        items['accuracy'] = self.accuracy.compute().item()
+        return items
     
     def migrate_from_torchvision(self, torch_vision_state_dict):
         def remove_num_batches_tracked(state_dict):

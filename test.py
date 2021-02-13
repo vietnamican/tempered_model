@@ -12,11 +12,11 @@ if __name__ == '__main__':
         model,
         (3, 32, 32),
         col_names=[
-            "input_size",
+            #"input_size",
             "output_size",
             "num_params",
-            "kernel_size",
-            "mult_adds"
+            #"kernel_size",
+            #"mult_adds"
         ],
         depth=5)
 
