@@ -59,6 +59,8 @@ class Resnet50Truncate(Base):
         self.layer2 = nn.Sequential(
             Bottleneck(256, 512, downsample=True, stride=2),
             Bottleneck(512, 512),
+            Bottleneck(512, 512),
+            Bottleneck(512, 512)
         )
         self.layer3 = nn.Sequential(
             Bottleneck(512, 1024, downsample=True, stride=2),
@@ -68,7 +70,6 @@ class Resnet50Truncate(Base):
         self.layer4 = nn.Sequential(
             Bottleneck(1024, 2048, downsample=True, stride=2),
             Bottleneck(2048, 2048),
-            Bottleneck(2048, 2048)
         )
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(2048, 1000)

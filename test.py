@@ -3,20 +3,21 @@ import torchvision
 from torchsummary import summary
 
 from model import OriginalModel, VGG, FusionlModel, Fusion2
-from model.resnet import Bottleneck, Resnet50
+from model.resnet import Bottleneck, Resnet50, Resnet50Truncate
 
 if __name__ == '__main__':
     model = Resnet50()
+    # model = Resnet50Truncate()
     # model = torchvision.models.resnet.resnet50()
     summary(
-        model,
-        (3, 32, 32),
+        model.layer3,
+        (512, 4, 4),
         col_names=[
-            #"input_size",
+            "input_size",
             "output_size",
             "num_params",
-            #"kernel_size",
-            #"mult_adds"
+            "kernel_size",
+            "mult_adds"
         ],
         depth=5)
 

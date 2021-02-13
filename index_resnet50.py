@@ -121,7 +121,6 @@ if __name__ == '__main__':
     ####################################
     ##       Testing truncate         ##
     ####################################
-
     # model = Resnet50Truncate()
     # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
     # if device == 'cpu':
