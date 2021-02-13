@@ -103,7 +103,7 @@ class Resnet50Truncate(Base):
         layer_index = optimizer_idx + self.start_layer
         _y, y = self.forward(x, 'training', layer_index)
         loss = self.criterion(_y, y)
-        self.log('train_loss{}'.format(layer_index))
+        self.log('train_loss{}'.format(layer_index), loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -144,6 +144,16 @@ class Resnet50Truncate(Base):
             if name.startswith(prefix):
                 p.requires_grad = False
 
+    def defrost_except_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if not name.startswith(prefix):
+                p.requires_grad = True
+
+    def defrost_with_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if name.startswith(prefix):
+                p.requires_grad = True
+            
     def get_progress_bar_dict(self):
         items = super().get_progress_bar_dict()
         items.pop('v_num', None)

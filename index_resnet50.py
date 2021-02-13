@@ -13,7 +13,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from model.resnet import Resnet50
+from model.resnet import Resnet50, Resnet50Truncate
 
 
 transform_train = transforms.Compose([
@@ -52,13 +52,59 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
-    model = Resnet50()
-    model.migrate_from_torchvision(resnet50.state_dict())   
+
+    ####################################
+    ##     Training original          ##
+    ####################################
+    # resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
+    # model = Resnet50()
+    # model.migrate_from_torchvision(resnet50.state_dict())   
+    # logger = TensorBoardLogger(
+    #     save_dir=os.getcwd(),
+    #     name='resnet50_logs',
+    #     log_graph=True,
+    # )
+    # loss_callback = ModelCheckpoint(
+    #     monitor='val_loss',
+    #     dirpath='',
+    #     filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
+    #     save_top_k=-1,
+    #     mode='min',
+    # )
+    # acc_callback = ModelCheckpoint(
+    #     monitor='val_acc_epoch',
+    #     dirpath='',
+    #     filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
+    #     save_top_k=-1,
+    #     mode='max',
+    # )
+    # trainer = pl.Trainer(
+    #     max_epochs=30,
+    #     logger = logger,
+    #     callbacks=[loss_callback, acc_callback]
+    # )
+    # trainer.fit(model, trainloader, testloader)
+
+    ####################################
+    ##       Tuning truncate          ##
+    ####################################
+    model = Resnet50Truncate()
+    original_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
+    if device == 'cpu':
+        original_checkpoint = torch.load(original_model_checkpoint_path, map_location=lambda storage, loc: storage)
+    else:
+        original_checkpoint = torch.load(original_model_checkpoint_path)
+    original_state_dict = original_checkpoint['state_dict']
+    model.orig_model.migrate(original_state_dict)
+    original_state_dict = remove_module_with_prefix(original_state_dict, 'layer3')
+    original_state_dict = remove_module_with_prefix(original_state_dict, 'layer4')
+    model.migrate(original_state_dict)
+    model.freeze_except_prefix('layer3')
+    model.defrost_with_prefix('layer4')
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
-        name='resnet50_logs',
-        log_graph=True,
+        name='resnet50_all_in_one_logs',
+        log_graph=True
     )
     loss_callback = ModelCheckpoint(
         monitor='val_loss',
@@ -67,16 +113,43 @@ if __name__ == '__main__':
         save_top_k=-1,
         mode='min',
     )
-    acc_callback = ModelCheckpoint(
-        monitor='val_acc_epoch',
-        dirpath='',
-        filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
-        save_top_k=-1,
-        mode='max',
-    )
-    trainer = pl.Trainer(
-        max_epochs=30,
-        logger = logger,
-        callbacks=[loss_callback, acc_callback]
-    )
+    trainer = pl.Trainer(max_epochs=30,
+                         logger=logger,
+                         callbacks=[loss_callback])
     trainer.fit(model, trainloader, testloader)
+
+    ####################################
+    ##       Testing truncate         ##
+    ####################################
+
+    # model = Resnet50Truncate()
+    # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
+    # if device == 'cpu':
+    #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
+    # else:
+    #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path)
+    # truncate_state_dict = truncate_checkpoint['state_dict']
+    # model.migrate(truncate_state_dict)
+    # logger = TensorBoardLogger(
+    #     save_dir=os.getcwd(),
+    #     name='resnet50_all_in_one_test_logs',
+    #     log_graph=True
+    # )
+    # loss_callback = ModelCheckpoint(
+    #     monitor='tess_loss',
+    #     dirpath='',
+    #     filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
+    #     save_top_k=-1,
+    #     mode='min',
+    # )
+    # acc_callback = ModelCheckpoint(
+    #     monitor='test_acc_epoch',
+    #     dirpath='',
+    #     filename='checkpoint-{epoch:02d}-{test_acc_epoch:.4f}',
+    #     save_top_k=-1,
+    #     mode='min',
+    # )
+    # trainer = pl.Trainer(max_epochs=20,
+    #                      logger=logger,
+    #                      callbacks=[loss_callback, acc_callback])
+    # trainer.test(model, testloader)
