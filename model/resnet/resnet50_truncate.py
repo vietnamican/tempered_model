@@ -44,7 +44,7 @@ class Bottleneck(Base):
 
 
 class Resnet50Truncate(Base):
-    start_layer = 3
+    start_layer = 4
 
     def __init__(self):
         super().__init__()
@@ -66,6 +66,9 @@ class Resnet50Truncate(Base):
             Bottleneck(512, 1024, downsample=True, stride=2),
             Bottleneck(1024, 1024),
             Bottleneck(1024, 1024),
+            Bottleneck(1024, 1024),
+            Bottleneck(1024, 1024),
+            Bottleneck(1024, 1024),
         )
         self.layer4 = nn.Sequential(
             Bottleneck(1024, 2048, downsample=True, stride=2),
@@ -82,9 +85,10 @@ class Resnet50Truncate(Base):
         if mode == 'training':
             if layer_index == -1:
                 y, y1, y2, y3, y4 = self.orig_model(x)
-                _y3 = self.layer3(y2)
+                # _y3 = self.layer3(y2)
                 _y4 = self.layer4(y3)
-                return _y3, _y4, y3, y4
+                return _y4, y4
+                # return _y3, _y4, y3, y4
             else:
                 ys = self.orig_model(x)
                 x = ys[layer_index-1]
@@ -109,12 +113,13 @@ class Resnet50Truncate(Base):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        _y3, _y4, y3, y4 = self.forward(x, 'training')
-        loss3 = self.criterion(_y3, y3)
+        _y4, y4 = self.forward(x, 'training')
+        # loss3 = self.criterion(_y3, y3)
         loss4 = self.criterion(_y4, y4)
-        self.log('val_loss3', loss3)
+        # self.log('val_loss3', loss3)
         self.log('val_loss4', loss4)
-        loss = loss3 + loss4
+        # loss = loss3 + loss4
+        loss = loss4
         self.log('val_loss', loss)
         return loss
 
@@ -131,7 +136,7 @@ class Resnet50Truncate(Base):
 
     def configure_optimizers(self):
         return [
-            torch.optim.Adam(self.layer3.parameters()),
+            # torch.optim.Adam(self.layer3.parameters()),
             torch.optim.Adam(self.layer4.parameters()),
         ]
 

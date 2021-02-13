@@ -6,12 +6,12 @@ from model import OriginalModel, VGG, FusionlModel, Fusion2
 from model.resnet import Bottleneck, Resnet50, Resnet50Truncate
 
 if __name__ == '__main__':
-    model = Resnet50()
-    # model = Resnet50Truncate()
+    # model = Resnet50()
+    model = Resnet50Truncate()
     # model = torchvision.models.resnet.resnet50()
     summary(
-        model.layer3,
-        (512, 4, 4),
+        model,
+        (3, 32, 32),
         col_names=[
             "input_size",
             "output_size",

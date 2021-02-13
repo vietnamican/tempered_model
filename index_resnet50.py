@@ -37,14 +37,14 @@ device = 'cpu'
 
 if device == 'tpu':
     trainset = torchvision.datasets.CIFAR10(
-    root='./data', train=True, download=True, transform=transform_train)
+        root='./data', train=True, download=True, transform=transform_train)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(
-                trainset,
-                num_replicas=xm.xrt_world_size(),
-                rank=xm.get_ordinal(),
-                shuffle=True
-            )
+        trainset,
+        num_replicas=xm.xrt_world_size(),
+        rank=xm.get_ordinal(),
+        shuffle=True
+    )
 
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=128, num_workers=4, sampler=train_sampler)
@@ -53,11 +53,11 @@ if device == 'tpu':
         root='./data', train=False, download=True, transform=transform_test)
 
     test_sampler = torch.utils.data.distributed.DistributedSampler(
-                testset,
-                num_replicas=xm.xrt_world_size(),
-                rank=xm.get_ordinal(),
-                shuffle=False
-            )
+        testset,
+        num_replicas=xm.xrt_world_size(),
+        rank=xm.get_ordinal(),
+        shuffle=False
+    )
 
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=128, num_workers=4, sampler=test_sampler)
@@ -83,6 +83,7 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
             new_state_dict[name] = p
     return new_state_dict
 
+
 if __name__ == '__main__':
     pl.seed_everything(42)
 
@@ -91,7 +92,7 @@ if __name__ == '__main__':
     ####################################
     # resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
     # model = Resnet50()
-    # model.migrate_from_torchvision(resnet50.state_dict())   
+    # model.migrate_from_torchvision(resnet50.state_dict())
     # logger = TensorBoardLogger(
     #     save_dir=os.getcwd(),
     #     name='resnet50_logs',
@@ -124,16 +125,18 @@ if __name__ == '__main__':
     model = Resnet50Truncate()
     original_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
     if device == 'cpu' or device == 'tpu':
-        original_checkpoint = torch.load(original_model_checkpoint_path, map_location=lambda storage, loc: storage)
+        original_checkpoint = torch.load(
+            original_model_checkpoint_path, map_location=lambda storage, loc: storage)
     else:
         original_checkpoint = torch.load(original_model_checkpoint_path)
     original_state_dict = original_checkpoint['state_dict']
     model.orig_model.migrate(original_state_dict)
-    original_state_dict = remove_module_with_prefix(original_state_dict, 'layer3')
-    original_state_dict = remove_module_with_prefix(original_state_dict, 'layer4')
+    # original_state_dict = remove_module_with_prefix(original_state_dict, 'layer3')
+    original_state_dict = remove_module_with_prefix(
+        original_state_dict, 'layer4')
     model.migrate(original_state_dict)
-    model.freeze_except_prefix('layer3')
-    model.defrost_with_prefix('layer4')
+    model.freeze_except_prefix('layer4')
+    # model.defrost_with_prefix('layer4')
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
         name='resnet50_all_in_one_logs',
@@ -146,9 +149,15 @@ if __name__ == '__main__':
         save_top_k=-1,
         mode='min',
     )
-    trainer = pl.Trainer(max_epochs=30,
-                         logger=logger,
-                         callbacks=[loss_callback])
+    if device == 'tpu':
+        trainer = pl.Trainer(max_epochs=30,
+                             tpu_cores=8,
+                             logger=logger,
+                             callbacks=[loss_callback])
+    else:
+        trainer = pl.Trainer(max_epochs=30,
+                             logger=logger,
+                             callbacks=[loss_callback])
     trainer.fit(model, trainloader, testloader)
 
     ####################################
