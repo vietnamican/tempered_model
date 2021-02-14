@@ -3,7 +3,7 @@ from model.resnet.resnet50 import Resnet50
 import torch
 from torch import nn
 import pytorch_lightning as pl
-from typing import Type, Any, Callable, Union, List, Optional, Literal
+from typing import Type, Any, Callable, Union, List, Optional
 
 from ..base import Base, ConvBatchNormRelu
 
@@ -121,7 +121,7 @@ class Resnet34(Base):
 
     def __init__(
         self,
-        mode: Literal['tuning', 'truncating', 'inference'] = 'tuning'
+        mode='tuning'
     ):
         super().__init__()
         self.conv1 = ConvBatchNormRelu(
@@ -175,6 +175,10 @@ class Resnet34(Base):
             self.register_modules()
             self.register_truncate()
             self.freeze_except_prefix('truncate')
+            self.freeze_with_prefix('truncate.layer3.0')
+            self.freeze_with_prefix('truncate.layer3.1')
+            self.freeze_with_prefix('truncate.layer3.2')
+            self.freeze_with_prefix('truncate.layer4.0')
         else:
             self.criterion = nn.CrossEntropyLoss()
             self.freeze_with_prefix('truncate')
@@ -286,11 +290,11 @@ class Resnet34(Base):
         self_state_dict = self.filter_state_dict_except_prefix(
             self.state_dict(), 'truncate')
         super().migrate(self_state_dict, state_dict, force=True)
-        self.truncate.layer3[1].migrate(
-            self.filter_state_dict_with_prefix(state_dict, 'layer3.0'), force=True)
-        self.truncate.layer3[2].migrate(
-            self.filter_state_dict_with_prefix(state_dict, 'layer3.1'), force=True)
         self.truncate.layer3[0].migrate(
+            self.filter_state_dict_with_prefix(state_dict, 'layer3.0'), force=True)
+        self.truncate.layer3[1].migrate(
+            self.filter_state_dict_with_prefix(state_dict, 'layer3.1'), force=True)
+        self.truncate.layer3[2].migrate(
             self.filter_state_dict_with_prefix(state_dict, 'layer3.2'), force=True)
         self.truncate.layer4[0].migrate(
             self.filter_state_dict_with_prefix(state_dict, 'layer4.0'), force=True)

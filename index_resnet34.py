@@ -33,7 +33,7 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-device = 'cpu'
+device = 'tpu'
 
 if device == 'tpu':
     trainset = torchvision.datasets.CIFAR10(
@@ -90,67 +90,14 @@ if __name__ == '__main__':
     ####################################
     ##     Training original          ##
     ####################################
-    resnet34 = torchvision.models.resnet.resnet34(pretrained=True)
-    model = Resnet34('tuning')
-    model.migrate_from_torchvision(resnet34.state_dict())
-    logger = TensorBoardLogger(
-        save_dir=os.getcwd(),
-        name='resnet34_logs',
-        log_graph=True,
-    )
-    loss_callback = ModelCheckpoint(
-        monitor='val_loss',
-        dirpath='',
-        filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
-        save_top_k=-1,
-        mode='min',
-    )
-    acc_callback = ModelCheckpoint(
-        monitor='val_acc_epoch',
-        dirpath='',
-        filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
-        save_top_k=-1,
-        mode='max',
-    )
-    if device == 'tpu':
-        trainer = pl.Trainer(
-            progress_bar_refresh_rate=20,
-            tpu_cores=8,
-            max_epochs=30,
-            logger = logger,
-            callbacks=[loss_callback, acc_callback]
-        )
-    else:
-        trainer = pl.Trainer(
-            progress_bar_refresh_rate=20,
-            max_epochs=30,
-            logger = logger,
-            callbacks=[loss_callback, acc_callback]
-        )
-    trainer.fit(model, trainloader, testloader)
-
-    ####################################
-    ##       Tuning truncate          ##
-    ####################################
-    # model = Resnet50Truncate()
-    # original_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
-    # if device == 'cpu' or device == 'tpu':
-    #     original_checkpoint = torch.load(
-    #         original_model_checkpoint_path, map_location=lambda storage, loc: storage)
-    # else:
-    #     original_checkpoint = torch.load(original_model_checkpoint_path)
-    # original_state_dict = original_checkpoint['state_dict']
-    # model.orig_model.migrate(original_state_dict)
-    # # original_state_dict = remove_module_with_prefix(original_state_dict, 'layer3')
-    # original_state_dict = remove_module_with_prefix(
-    #     original_state_dict, 'layer4')
-    # model.migrate(original_state_dict)
-    # model.freeze_except_prefix('layer4')
-    # # model.defrost_with_prefix('layer4')
+    # resnet34 = torchvision.models.resnet.resnet34(pretrained=True)
+    # model = Resnet34('tuning')
+    # model.migrate_from_torchvision(resnet34.state_dict())
     # logger = TensorBoardLogger(
     #     save_dir=os.getcwd(),
-    #     name='resnet50_all_in_one_logs',
-    #     log_graph=True
+    #     name='resnet34_logs',
+    #     log_graph=True,
+    #     version=0
     # )
     # loss_callback = ModelCheckpoint(
     #     monitor='val_loss',
@@ -159,22 +106,71 @@ if __name__ == '__main__':
     #     save_top_k=-1,
     #     mode='min',
     # )
+    # acc_callback = ModelCheckpoint(
+    #     monitor='val_acc_epoch',
+    #     dirpath='',
+    #     filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
+    #     save_top_k=-1,
+    #     mode='max',
+    # )
     # if device == 'tpu':
     #     trainer = pl.Trainer(
+    #         resume_from_checkpoint='./resnet34_logs/version_0/checkpoints/checkpoint-epoch=29-val_acc_epoch=0.8518.ckpt',
     #         progress_bar_refresh_rate=20,
     #         tpu_cores=8,
-    #         max_epochs=30,
+    #         max_epochs=90,
     #         logger = logger,
     #         callbacks=[loss_callback, acc_callback]
     #     )
     # else:
     #     trainer = pl.Trainer(
     #         progress_bar_refresh_rate=20,
-    #         max_epochs=30,
+    #         max_epochs=90,
     #         logger = logger,
     #         callbacks=[loss_callback, acc_callback]
     #     )
     # trainer.fit(model, trainloader, testloader)
+
+    ####################################
+    ##       Tuning truncate          ##
+    ####################################
+    model = Resnet34('truncating')
+    checkpoint_path = './resnet34_logs/version_0/checkpoints/checkpoint-epoch=88-val_acc_epoch=0.8703.ckpt'
+    if device == 'cpu' or device == 'tpu':
+        checkpoint = torch.load(
+            checkpoint_path, map_location=lambda storage, loc: storage)
+    else:
+        checkpoint = torch.load(checkpoint_path)
+    state_dict = checkpoint['state_dict']
+    model.migrate(state_dict)
+    logger = TensorBoardLogger(
+        save_dir=os.getcwd(),
+        name='resnet34_truncating_logs',
+        log_graph=True
+    )
+    loss_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath='',
+        filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
+        save_top_k=-1,
+        mode='min',
+    )
+    if device == 'tpu':
+        trainer = pl.Trainer(
+            progress_bar_refresh_rate=20,
+            tpu_cores=8,
+            max_epochs=90,
+            logger = logger,
+            callbacks=[loss_callback]
+        )
+    else:
+        trainer = pl.Trainer(
+            progress_bar_refresh_rate=20,
+            max_epochs=30,
+            logger = logger,
+            callbacks=[loss_callback]
+        )
+    trainer.fit(model, trainloader, testloader)
 
     ####################################
     ##       Testing truncate         ##
