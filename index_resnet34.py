@@ -90,9 +90,9 @@ if __name__ == '__main__':
     ####################################
     ##     Training original          ##
     ####################################
-    # resnet34 = torchvision.models.resnet.resnet34(pretrained=True)
+    resnet34 = torchvision.models.resnet.resnet34(pretrained=True)
     model = Resnet34('tuning')
-    # model.migrate_from_torchvision(resnet34.state_dict())
+    model.migrate_from_torchvision(resnet34.state_dict())
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
         name='resnet34_logs',
@@ -112,11 +112,21 @@ if __name__ == '__main__':
         save_top_k=-1,
         mode='max',
     )
-    trainer = pl.Trainer(
-        max_epochs=30,
-        logger = logger,
-        callbacks=[loss_callback, acc_callback]
-    )
+    if device == 'tpu':
+        trainer = pl.Trainer(
+            progress_bar_refresh_rate=20,
+            tpu_cores=8,
+            max_epochs=30,
+            logger = logger,
+            callbacks=[loss_callback, acc_callback]
+        )
+    else:
+        trainer = pl.Trainer(
+            progress_bar_refresh_rate=20,
+            max_epochs=30,
+            logger = logger,
+            callbacks=[loss_callback, acc_callback]
+        )
     trainer.fit(model, trainloader, testloader)
 
     ####################################
@@ -150,14 +160,20 @@ if __name__ == '__main__':
     #     mode='min',
     # )
     # if device == 'tpu':
-    #     trainer = pl.Trainer(max_epochs=30,
-    #                          tpu_cores=8,
-    #                          logger=logger,
-    #                          callbacks=[loss_callback])
+    #     trainer = pl.Trainer(
+    #         progress_bar_refresh_rate=20,
+    #         tpu_cores=8,
+    #         max_epochs=30,
+    #         logger = logger,
+    #         callbacks=[loss_callback, acc_callback]
+    #     )
     # else:
-    #     trainer = pl.Trainer(max_epochs=30,
-    #                          logger=logger,
-    #                          callbacks=[loss_callback])
+    #     trainer = pl.Trainer(
+    #         progress_bar_refresh_rate=20,
+    #         max_epochs=30,
+    #         logger = logger,
+    #         callbacks=[loss_callback, acc_callback]
+    #     )
     # trainer.fit(model, trainloader, testloader)
 
     ####################################
@@ -190,7 +206,19 @@ if __name__ == '__main__':
     #     save_top_k=-1,
     #     mode='min',
     # )
-    # trainer = pl.Trainer(max_epochs=20,
-    #                      logger=logger,
-    #                      callbacks=[loss_callback, acc_callback])
+    # if device == 'tpu':
+    #     trainer = pl.Trainer(
+    #         progress_bar_refresh_rate=20,
+    #         tpu_cores=8,
+    #         max_epochs=30,
+    #         logger = logger,
+    #         callbacks=[loss_callback, acc_callback]
+    #     )
+    # else:
+    #     trainer = pl.Trainer(
+    #         progress_bar_refresh_rate=20,
+    #         max_epochs=30,
+    #         logger = logger,
+    #         callbacks=[loss_callback, acc_callback]
+    #     )
     # trainer.test(model, testloader)
