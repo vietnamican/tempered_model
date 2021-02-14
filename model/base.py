@@ -93,7 +93,26 @@ class Base(pl.LightningModule):
     ):
         if not isinstance(prefix, str):
             raise BaseException('prefix', [str])
+    
+    def freeze_except_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if not name.startswith(prefix):
+                p.requires_grad = False
 
+    def freeze_with_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if name.startswith(prefix):
+                p.requires_grad = False
+
+    def defrost_except_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if not name.startswith(prefix):
+                p.requires_grad = True
+
+    def defrost_with_prefix(self, prefix):
+        for name, p in self.named_parameters():
+            if name.startswith(prefix):
+                p.requires_grad = True
 
 class BaseSequential(nn.Sequential, Base):
     pass

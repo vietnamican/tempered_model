@@ -103,8 +103,9 @@ class Resnet50Truncate(Base):
             y = self.fc(torch.flatten(y, 1))
             return y
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         x, y = batch
+        optimizer_idx = 0
         layer_index = optimizer_idx + self.start_layer
         _y, y = self.forward(x, 'training', layer_index)
         loss = self.criterion(_y, y)
@@ -139,26 +140,6 @@ class Resnet50Truncate(Base):
             # torch.optim.Adam(self.layer3.parameters()),
             torch.optim.Adam(self.layer4.parameters()),
         ]
-
-    def freeze_except_prefix(self, prefix):
-        for name, p in self.named_parameters():
-            if not name.startswith(prefix):
-                p.requires_grad = False
-
-    def freeze_with_prefix(self, prefix):
-        for name, p in self.named_parameters():
-            if name.startswith(prefix):
-                p.requires_grad = False
-
-    def defrost_except_prefix(self, prefix):
-        for name, p in self.named_parameters():
-            if not name.startswith(prefix):
-                p.requires_grad = True
-
-    def defrost_with_prefix(self, prefix):
-        for name, p in self.named_parameters():
-            if name.startswith(prefix):
-                p.requires_grad = True
             
     def get_progress_bar_dict(self):
         items = super().get_progress_bar_dict()
