@@ -125,7 +125,7 @@ class Resnet34(Base):
     ):
         super().__init__()
         self.conv1 = ConvBatchNormRelu(
-            3, 64, kernel_size=7, padding=3, stride=0, bias=False)
+            3, 64, kernel_size=7, padding=3, stride=1, bias=False)
         # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = nn.Sequential(
             BasicBlock(64, 64),
@@ -169,6 +169,7 @@ class Resnet34(Base):
         )
         self.accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
+        self.test_accuracy = pl.metrics.Accuracy()
         self.mode = mode
         if mode == 'truncating':
             self.criterion = nn.MSELoss()
@@ -185,12 +186,23 @@ class Resnet34(Base):
 
     def forward(
             self,
-            x
+            x,
+            mode='tuning'
     ):
-        x = self.conv1(x)
-        x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
-        x = self.avgpool(x)
-        return self.fc(torch.flatten(x, 1))
+        if mode == 'inference':
+            x = self.conv1(x)
+            x = self.layer2(self.layer1(x))
+            x = self.truncate.layer3(x)
+            x = self.layer4[0](x)
+            x = self.layer4[1](x)
+            x = self.truncate.layer4[2](x)
+            x = self.avgpool(x)
+            return self.fc(torch.flatten(x, 1))
+        else:
+            x = self.conv1(x)
+            x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+            x = self.avgpool(x)
+            return self.fc(torch.flatten(x, 1))
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -234,6 +246,18 @@ class Resnet34(Base):
         if not self.mode == 'truncating':
             self.log('val_acc_epoch', self.val_accuracy.compute())
 
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        logit = self.forward(x, mode='inference')
+        loss = self.criterion(logit, y)
+        pred = logit.argmax(dim=1)
+        self.log('test_loss', loss)
+        self.log('test_acc_step', self.test_accuracy(pred, y))
+        return loss
+    
+    def test_epoch_end(self, outputs):
+        self.log('test_acc_epoch', self.test_accuracy.compute())
+
     def configure_optimizers(self):
         if not self.mode == 'truncating':
             optimizer = torch.optim.SGD(self.parameters(), lr=0.1,
@@ -248,8 +272,11 @@ class Resnet34(Base):
             params = []
             for truncate_module in self.truncate_modules:
                 params.extend(truncate_module.parameters())
-            optimizer = torch.optim.Adam(params)
-            return optimizer
+            optimizer = torch.optim.SGD(params, lr=0.01,
+                    momentum=0.9, weight_decay=5e-4)
+            lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+            # optimizer = torch.optim.Adam(params)
+            return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
 
     def register_modules(self):
         self.orig_modules = []
