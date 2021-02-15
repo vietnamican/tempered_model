@@ -125,8 +125,8 @@ class Resnet34(Base):
     ):
         super().__init__()
         self.conv1 = ConvBatchNormRelu(
-            3, 64, kernel_size=7, padding=3, stride=2, bias=False)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+            3, 64, kernel_size=7, padding=3, stride=0, bias=False)
+        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = nn.Sequential(
             BasicBlock(64, 64),
             BasicBlock(64, 64),
@@ -187,7 +187,7 @@ class Resnet34(Base):
             self,
             x
     ):
-        x = self.maxpool(self.conv1(x))
+        x = self.conv1(x)
         x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
         x = self.avgpool(x)
         return self.fc(torch.flatten(x, 1))
@@ -236,10 +236,13 @@ class Resnet34(Base):
 
     def configure_optimizers(self):
         if not self.mode == 'truncating':
-            optimizer = torch.optim.SGD(
-                self.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-            lr_scheduler = torch.optim.lr_scheduler.StepLR(
-                optimizer, step_size=30, gamma=0.1)
+            optimizer = torch.optim.SGD(self.parameters(), lr=0.1,
+                      momentum=0.9, weight_decay=5e-4)
+            lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+            # optimizer = torch.optim.SGD(
+            #     self.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+            # lr_scheduler = torch.optim.lr_scheduler.StepLR(
+            #     optimizer, step_size=30, gamma=0.1)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         else:
             params = []
