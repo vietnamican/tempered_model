@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from model.resnet import Resnet18
+from model.resnet.resnet50_rewrite import Resnet50
 
 
 transform_train = transforms.Compose([
@@ -35,14 +35,14 @@ transform_test = transforms.Compose([
 
 orig_module_names = [
     'orig.conv1',
-    'orig.layer1.0',
-    'orig.layer1.1',
-    'orig.layer2.0',
-    'orig.layer2.1',
+    'orig.layer1',
+    'orig.layer2',
     'orig.layer3.0',
     'orig.layer3.1',
+    ['orig.layer3.2', 'orig.layer3.3'],
+    ['orig.layer3.4', 'orig.layer3.5'],
     'orig.layer4.0',
-    'orig.layer4.1',
+    ['orig.layer4.1', 'orig.layer4.2'],
     'orig.avgpool',
     'orig.flatten',
     'orig.fc'
@@ -50,12 +50,12 @@ orig_module_names = [
 
 tempered_module_names = [
     'tempered.conv1',
-    'tempered.layer1.0',
-    'tempered.layer1.1',
-    'tempered.layer2.0',
-    'tempered.layer2.1',
+    'tempered.layer1',
+    'tempered.layer2',
     'tempered.layer3.0',
     'tempered.layer3.1',
+    'tempered.layer3.2',
+    'tempered.layer3.3',
     'tempered.layer4.0',
     'tempered.layer4.1',
     'tempered.avgpool',
@@ -65,13 +65,13 @@ tempered_module_names = [
 
 is_trains = [
     False,
+    False,
+    False,
+    False,
+    False,
     True,
     True,
-    True,
-    True,
-    True,
-    True,
-    True,
+    False,
     True,
     False,
     False,
@@ -131,17 +131,17 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'training'
+    mode = 'temper'
     if mode == 'training':
         ####################################
         ##     Training original          ##
         ####################################
-        resnet18 = torchvision.models.resnet.resnet18(pretrained=True)
-        model = Resnet18('training', orig_module_names, tempered_module_names, is_trains)
-        model.migrate_from_torchvision(resnet18.state_dict())
+        resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
+        model = Resnet50('training', orig_module_names, tempered_module_names, is_trains)
+        model.migrate_from_torchvision(resnet50.state_dict())
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet18_training_logs',
+            name='resnet50_rewrite_training_logs',
             log_graph=True,
             version=0
         )
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         ###################################
         #             Temper             ##
         ###################################
-        model = Resnet18('temper', orig_module_names, tempered_module_names, is_trains)
+        model = Resnet50('temper', orig_module_names, tempered_module_names, is_trains)
         # checkpoint_path = './resnet18_logs/version_0/checkpoints/checkpoint-epoch=20-val_acc_epoch=0.7936.ckpt'
         # if device == 'cpu' or device == 'tpu':
         #     checkpoint = torch.load(
@@ -190,7 +190,7 @@ if __name__ == '__main__':
         # model.migrate_from_torchvision(state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet18_temper_logs',
+            name='resnet50_rewrite_temper_logs',
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
@@ -219,7 +219,7 @@ if __name__ == '__main__':
         ###################################
         #             Tuning             ##
         ###################################
-        model = Resnet18('tuning', orig_module_names, tempered_module_names, is_trains)
+        model = Resnet50('tuning', orig_module_names, tempered_module_names, is_trains)
         # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
         # if device == 'cpu' or device == 'tpu':
         #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
@@ -229,7 +229,7 @@ if __name__ == '__main__':
         # model.migrate(truncate_state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet18_tuning_logs',
+            name='resnet50_rewrite_tuning_logs',
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
@@ -265,7 +265,7 @@ if __name__ == '__main__':
         ###################################
         #            Testing             ##
         ###################################
-        model = Resnet18('inference', orig_module_names, tempered_module_names, is_trains)
+        model = Resnet50('inference', orig_module_names, tempered_module_names, is_trains)
         # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
         # if device == 'cpu' or device == 'tpu':
         #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
@@ -275,7 +275,7 @@ if __name__ == '__main__':
         # model.migrate(truncate_state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet18_inference_logs',
+            name='resnet50_rewrite_inference_logs',
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
