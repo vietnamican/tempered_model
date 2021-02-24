@@ -183,9 +183,9 @@ class TemperedModel(Base):
         else:
             print("Not in one of modes ['trianing', 'temper', 'tuning']")
 
-    def migrate(self, state_dict):
+    def migrate(self, state_dict, *args, **kwargs):
         state_dict = self.remove_prefix_state_dict(state_dict, 'forward_path')
-        super().migrate(state_dict)
+        super().migrate(state_dict, *args, **kwargs)
         
     def _set_forward_path(self):
         if self.mode == 'training':

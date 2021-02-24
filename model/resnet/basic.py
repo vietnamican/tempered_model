@@ -89,7 +89,7 @@ class BasicBlockTruncate(Base):
         if self.skip_layer is not None:
             skip = self.skip_layer(x)
         else:
-            skip = x
+            skip = 0
         conv3 = self.conv1(x)
         identity = self.identity_layer(x)
 
