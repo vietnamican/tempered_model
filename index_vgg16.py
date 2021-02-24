@@ -116,7 +116,7 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'inference'
+    mode = 'temper'
     if mode == 'training':
         ####################################
         ##     Training original          ##
@@ -164,14 +164,14 @@ if __name__ == '__main__':
         #             Temper             ##
         ###################################
         model = VGG16('temper', orig_module_names, tempered_module_names, is_trains)
-        checkpoint_path = './resnet34_logs/version_0/checkpoints/checkpoint-epoch=20-val_acc_epoch=0.7936.ckpt'
-        if device == 'cpu' or device == 'tpu':
-            checkpoint = torch.load(
-                checkpoint_path, map_location=lambda storage, loc: storage)
-        else:
-            checkpoint = torch.load(checkpoint_path)
-        state_dict = checkpoint['state_dict']
-        model.migrate_from_torchvision(state_dict)
+        # checkpoint_path = './resnet34_logs/version_0/checkpoints/checkpoint-epoch=20-val_acc_epoch=0.7936.ckpt'
+        # if device == 'cpu' or device == 'tpu':
+        #     checkpoint = torch.load(
+        #         checkpoint_path, map_location=lambda storage, loc: storage)
+        # else:
+        #     checkpoint = torch.load(checkpoint_path)
+        # state_dict = checkpoint['state_dict']
+        # model.migrate_from_torchvision(state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
             name='vgg16_temper_logs',
