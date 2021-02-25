@@ -19,6 +19,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from model.resnet import Resnet18
+from model.tempered_model import LogitTuneModel
 
 
 transform_train = transforms.Compose([
@@ -307,3 +308,32 @@ if __name__ == '__main__':
                 callbacks=[loss_callback, acc_callback]
             )
         trainer.test(model, testloader)
+    elif mode == 'logittuning':
+        model = LogitTuneModel(Resnet18, orig_module_names, tempered_module_names, is_trains, device=device, checkpoint_path="")
+        logger = TensorBoardLogger(
+            save_dir=os.getcwd(),
+            name='resnet50_rewrite_logittuning_logs',
+            log_graph=True
+        )
+        loss_callback = ModelCheckpoint(
+            monitor='val_loss',
+            dirpath='',
+            filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
+            save_top_k=-1,
+            mode='min',
+        )
+        if device == 'tpu':
+            trainer = pl.Trainer(
+                progress_bar_refresh_rate=20,
+                tpu_cores=8,
+                max_epochs=200,
+                logger = logger,
+                callbacks=[loss_callback]
+            )
+        else:
+            trainer = pl.Trainer(
+                max_epochs=200,
+                logger = logger,
+                callbacks=[loss_callback]
+            )
+        trainer.fit(model, trainloader, testloader)

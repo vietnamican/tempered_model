@@ -186,7 +186,7 @@ class TemperedModel(Base):
     def migrate(self, state_dict, *args, **kwargs):
         state_dict = self.remove_prefix_state_dict(state_dict, 'forward_path')
         super().migrate(state_dict, *args, **kwargs)
-        
+
     def _set_forward_path(self):
         if self.mode == 'training':
             modules = []
@@ -218,7 +218,7 @@ class TemperedModel(Base):
                 if module_names in modules_dict:
                     self.orig_modules.append(modules_dict[module_names])
             elif isinstance(module_names, list):
-                modules= []
+                modules = []
                 for module_name in module_names:
                     modules.append(modules_dict[module_name])
                 self.orig_modules.append(modules)
@@ -227,7 +227,59 @@ class TemperedModel(Base):
                 if module_names in modules_dict:
                     self.tempered_modules.append(modules_dict[module_names])
             elif isinstance(module_names, list):
-                modules= []
+                modules = []
                 for module_name in module_names:
                     modules.append(modules_dict[module_name])
                 self.tempered_modules.append(modules)
+
+
+class LogitTuneModel(Base):
+    def __init__(self, Model, orig_module_names, tempered_module_names, is_trains, device, checkpoint_path=""):
+        super().__init__()
+        self.reference_model = Model(
+            'inference', orig_module_names, tempered_module_names, is_trains=[False]*len(is_trains))
+        self.training_model = Model(
+            'inference', orig_module_names, tempered_module_names, is_trains)
+        
+        if checkpoint_path is not None and len(checkpoint_path) > 0:
+            if device == 'cpu' or device == 'tpu':
+                checkpoint = torch.load(
+                    checkpoint_path, map_location=lambda storage, loc: storage)
+            else:
+                checkpoint = torch.load(checkpoint_path)
+            state_dict = checkpoint['state_dict']
+            self.reference_model.migrate(state_dict)
+            self.training_model.migrate(state_dict)
+
+        self.criterion = nn.MSELoss()
+
+    def forward(self, x):
+        reference_logit = self.reference_model(x)
+        training_logit = self.training_model(x)
+        return reference_logit, training_logit
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        reference_logit, training_logit = self.forward(x)
+        loss = self.criterion(reference_logit, training_logit)
+        self.log('loss_train', loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        reference_logit, training_logit = self.forward(x)
+        loss = self.criterion(reference_logit, training_logit)
+        self.log('loss_val', loss)
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        reference_logit, training_logit = self.forward(x)
+        loss = self.criterion(reference_logit, training_logit)
+        self.log('loss_test', loss)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.SGD(self.parameters(), lr=0.0001,
+                                    momentum=0.9, weight_decay=5e-4)
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=200)
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
