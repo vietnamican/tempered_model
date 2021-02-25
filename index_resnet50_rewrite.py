@@ -137,9 +137,9 @@ if __name__ == '__main__':
         ####################################
         ##     Training original          ##
         ####################################
-        resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
+        # resnet50 = torchvision.models.resnet.resnet50(pretrained=True)
         model = Resnet50('training', orig_module_names, tempered_module_names, is_trains)
-        model.migrate_from_torchvision(resnet50.state_dict())
+        # model.migrate_from_torchvision(resnet50.state_dict())
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
             name='resnet50_rewrite_training_logs',
