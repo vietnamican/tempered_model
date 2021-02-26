@@ -131,3 +131,4 @@ dmypy.json
 *logs/
 data/
 test.py
+checkpoint*

@@ -240,7 +240,7 @@ class LogitTuneModel(Base):
             'inference', orig_module_names, tempered_module_names, is_trains=[False]*len(is_trains))
         self.training_model = Model(
             'inference', orig_module_names, tempered_module_names, is_trains)
-        
+
         if checkpoint_path is not None and len(checkpoint_path) > 0:
             if device == 'cpu' or device == 'tpu':
                 checkpoint = torch.load(
@@ -250,16 +250,19 @@ class LogitTuneModel(Base):
             state_dict = checkpoint['state_dict']
             self.reference_model.migrate(state_dict)
             self.training_model.migrate(state_dict)
-        # self.log_softmax = nn.LogSoftmax()
+        self.log_softmax = nn.LogSoftmax()
         self.criterion = nn.MSELoss()
+        self.train_accuracy = pl.metrics.Accuracy()
+        self.val_accuracy = pl.metrics.Accuracy()
+        self.test_accuracy = pl.metrics.Accuracy()
 
     def forward(self, x):
         reference_logit = self.reference_model(x)
         training_logit = self.training_model(x)
 
-        # reference_log = self.log_softmax(reference_logit)
-        # training_log = self.log_softmax(training_logit)
-        # return reference_log, training_log
+        reference_log = self.log_softmax(reference_logit)
+        training_log = self.log_softmax(training_logit)
+        return reference_log, training_log
 
         return reference_logit, training_logit
 
@@ -268,19 +271,42 @@ class LogitTuneModel(Base):
         reference_logit, training_logit = self.forward(x)
         loss = self.criterion(reference_logit, training_logit)
         self.log('train_loss', loss)
+        reference_pred = reference_logit.argmax(dim=1)
+        training_pred = training_logit.argmax(dim=1)
+        self.log('train_acc_step', self.train_accuracy(
+            reference_pred, training_pred))
         return loss
+
+    def training_epoch_end(self, outputs):
+        self.log('train_acc_epoch', self.train_accuracy.compute())
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         reference_logit, training_logit = self.forward(x)
         loss = self.criterion(reference_logit, training_logit)
         self.log('val_loss', loss)
+        reference_pred = reference_logit.argmax(dim=1)
+        training_pred = training_logit.argmax(dim=1)
+        self.log('val_acc_step', self.val_accuracy(
+            reference_pred, training_pred))
+        return loss
+
+    def validation_epoch_end(self):
+        self.log('val_acc_epoch', self.val_accuracy.compute())
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         reference_logit, training_logit = self.forward(x)
         loss = self.criterion(reference_logit, training_logit)
         self.log('test_loss', loss)
+        reference_pred = reference_logit.argmax(dim=1)
+        training_pred = training_logit.argmax(dim=1)
+        self.log('test_acc_step', self.test_accuracy(
+            reference_pred, training_pred))
+        return loss
+
+    def test_epoch_end(self, output):
+        self.log('test_acc_epoch', self.test_accuracy.compute())
 
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(self.training_model.parameters(), lr=0.001,
