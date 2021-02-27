@@ -250,7 +250,6 @@ class LogitTuneModel(Base):
             state_dict = checkpoint['state_dict']
             self.reference_model.migrate(state_dict)
             self.training_model.migrate(state_dict)
-        self.log_softmax = nn.LogSoftmax()
         self.criterion = nn.MSELoss()
         self.train_accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
@@ -260,16 +259,12 @@ class LogitTuneModel(Base):
         reference_logit = self.reference_model(x)
         training_logit = self.training_model(x)
 
-        reference_log = self.log_softmax(reference_logit)
-        training_log = self.log_softmax(training_logit)
-        return reference_log, training_log
-
         return reference_logit, training_logit
 
     def training_step(self, batch, batch_idx):
         x, y = batch
         reference_logit, training_logit = self.forward(x)
-        loss = self.criterion(reference_logit, training_logit)
+        loss = self.criterion(training_logit, reference_logit)
         self.log('train_loss', loss)
         reference_pred = reference_logit.argmax(dim=1)
         training_pred = training_logit.argmax(dim=1)
@@ -283,7 +278,7 @@ class LogitTuneModel(Base):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         reference_logit, training_logit = self.forward(x)
-        loss = self.criterion(reference_logit, training_logit)
+        loss = self.criterion(training_logit, reference_logit)
         self.log('val_loss', loss)
         reference_pred = reference_logit.argmax(dim=1)
         training_pred = training_logit.argmax(dim=1)
@@ -291,13 +286,13 @@ class LogitTuneModel(Base):
             reference_pred, training_pred))
         return loss
 
-    def validation_epoch_end(self):
+    def validation_epoch_end(self, outs):
         self.log('val_acc_epoch', self.val_accuracy.compute())
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         reference_logit, training_logit = self.forward(x)
-        loss = self.criterion(reference_logit, training_logit)
+        loss = self.criterion(training_logit, reference_logit)
         self.log('test_loss', loss)
         reference_pred = reference_logit.argmax(dim=1)
         training_pred = training_logit.argmax(dim=1)
