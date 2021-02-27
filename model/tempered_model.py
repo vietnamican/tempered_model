@@ -273,7 +273,8 @@ class LogitTuneModel(Base):
         return loss
 
     def training_epoch_end(self, outputs):
-        self.log('train_acc_epoch', self.train_accuracy.compute())
+        if self.mode in ['training', 'tuning']:
+            self.log('train_acc_epoch', self.train_accuracy.compute())
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -287,7 +288,8 @@ class LogitTuneModel(Base):
         return loss
 
     def validation_epoch_end(self, outs):
-        self.log('val_acc_epoch', self.val_accuracy.compute())
+        if self.mode in ['training', 'tuning']:
+            self.log('val_acc_epoch', self.val_accuracy.compute())
 
     def test_step(self, batch, batch_idx):
         x, y = batch
