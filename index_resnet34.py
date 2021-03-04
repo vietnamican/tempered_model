@@ -82,20 +82,20 @@ tempered_module_names = [
 
 is_trains = [
     False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
+    False,
     True,
     True,
     True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
-    True,
+    False,
     True,
     True,
     False,
@@ -153,73 +153,22 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
             new_state_dict[name] = p
     return new_state_dict
 
-
-device = 'cpu'
-
-if device == 'tpu':
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
-
-    train_sampler = torch.utils.data.distributed.DistributedSampler(
-        trainset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=True
-    )
-
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, num_workers=4, sampler=train_sampler)
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
-
-    test_sampler = torch.utils.data.distributed.DistributedSampler(
-        testset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=False
-    )
-
-    testloader = torch.utils.data.DataLoader(
-        testset, batch_size=128, num_workers=4, sampler=test_sampler)
-else:
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True, num_workers=36)
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(
-        testset, batch_size=128, shuffle=False, num_workers=36)
-
-classes = ('plane', 'car', 'bird', 'cat', 'deer',
-           'dog', 'frog', 'horse', 'ship', 'truck')
-
-
-def remove_module_with_prefix(state_dict, prefix='block1'):
-    new_state_dict = {}
-    for name, p in state_dict.items():
-        if not name.startswith(prefix):
-            new_state_dict[name] = p
-    return new_state_dict
-
-
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'logittuning'
+    mode = 'temper'
+    prefix_name_logs = 'resnet34_crelu/'
     if mode == 'training':
         ####################################
         ##     Training original          ##
         ####################################
-        resnet18 = torchvision.models.resnet.resnet18(pretrained=True)
-        model = Resnet34('training', orig_module_names, tempered_module_names, is_trains)
-        model.migrate_from_torchvision(resnet18.state_dict())
+        # resnet18 = torchvision.models.resnet.resnet18(pretrained=True)
+        model = Resnet34('training', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
+        # model.migrate_from_torchvision(resnet18.state_dict())
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet34_training_logs',
+            name='{}_training_logs'.format(prefix_name_logs),
             log_graph=True,
-            version=0
+            # version=0
         )
         loss_callback = ModelCheckpoint(
             monitor='val_loss',
@@ -255,18 +204,19 @@ if __name__ == '__main__':
         ###################################
         #             Temper             ##
         ###################################
-        model = Resnet34('temper', orig_module_names, tempered_module_names, is_trains)
-        # checkpoint_path = './resnet18_logs/version_0/checkpoints/checkpoint-epoch=20-val_acc_epoch=0.7936.ckpt'
-        # if device == 'cpu' or device == 'tpu':
-        #     checkpoint = torch.load(
-        #         checkpoint_path, map_location=lambda storage, loc: storage)
-        # else:
-        #     checkpoint = torch.load(checkpoint_path)
-        # state_dict = checkpoint['state_dict']
-        # model.migrate_from_torchvision(state_dict)
+        model = Resnet34('temper', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
+        checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+        # checkpoint_path = '{}_training_logs/version_0/checkpoints/checkpoint-epoch=199-val_acc_epoch=0.9128.ckpt'.format(prefix_name_logs)
+        if device == 'cpu' or device == 'tpu':
+            checkpoint = torch.load(
+                checkpoint_path, map_location=lambda storage, loc: storage)
+        else:
+            checkpoint = torch.load(checkpoint_path)
+        state_dict = checkpoint['state_dict']
+        model.migrate_from_torchvision(state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet34_temper_logs',
+            name='{}_temper_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
@@ -295,30 +245,31 @@ if __name__ == '__main__':
         ###################################
         #             Tuning             ##
         ###################################
-        model = Resnet34('tuning', orig_module_names, tempered_module_names, is_trains)
-        # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
-        # if device == 'cpu' or device == 'tpu':
-        #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
-        # else:
-        #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path)
-        # truncate_state_dict = truncate_checkpoint['state_dict']
-        # model.migrate(truncate_state_dict)
+        model = Resnet34('tuning', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
+        checkpoint_path = '{}_temper_logs/version_0/checkpoints/checkpoint-epoch=37-val_loss=0.0104.ckpt'.format(prefix_name_logs)
+        if device == 'cpu' or device == 'tpu':
+            checkpoint = torch.load(
+                checkpoint_path, map_location=lambda storage, loc: storage)
+        else:
+            checkpoint = torch.load(checkpoint_path)
+        state_dict = checkpoint['state_dict']
+        model.migrate(state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet34_tuning_logs',
+            name='{}_tuning_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
-            monitor='tess_loss',
+            monitor='val_loss',
             dirpath='',
             filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
             save_top_k=-1,
             mode='min',
         )
         acc_callback = ModelCheckpoint(
-            monitor='test_acc_epoch',
+            monitor='val_acc_epoch',
             dirpath='',
-            filename='checkpoint-{epoch:02d}-{test_acc_epoch:.4f}',
+            filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
             save_top_k=-1,
             mode='min',
         )
@@ -341,7 +292,7 @@ if __name__ == '__main__':
         ###################################
         #            Testing             ##
         ###################################
-        model = Resnet34('inference', orig_module_names, tempered_module_names, is_trains)
+        model = Resnet34('inference', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
         # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
         # if device == 'cpu' or device == 'tpu':
         #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
@@ -351,7 +302,7 @@ if __name__ == '__main__':
         # model.migrate(truncate_state_dict)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet34_inference_logs',
+            name='{}_inference_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
@@ -388,7 +339,7 @@ if __name__ == '__main__':
         summary(model.training_model, (3, 32, 32), col_names=["input_size", "output_size", "num_params", "kernel_size", "mult_adds"])
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='resnet34_logittuning_logs',
+            name='{}_logittuning_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
