@@ -11,65 +11,67 @@ from ..tempered_model import TemperedModel
 
 class Resnet34(TemperedModel):
 
-    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains):
+    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
         super().__init__(mode, orig_module_names, tempered_module_names, is_trains)
+        self.with_crelu = with_crelu
+        with_crelu = False
         self.orig = nn.Module()
         self.orig.conv1 = ConvBatchNormRelu(
             3, 64, kernel_size=7, padding=3, stride=1, bias=False)
         self.orig.layer1 = nn.Sequential(
-            BasicBlock(64, 64),
-            BasicBlock(64, 64),
-            BasicBlock(64, 64)
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu)
         )
         self.orig.layer2 = nn.Sequential(
-            BasicBlock(64, 128, downsample=True, stride=2),
-            BasicBlock(128, 128),
-            BasicBlock(128, 128),
-            BasicBlock(128, 128)
+            BasicBlock(64, 128, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu)
         )
         self.orig.layer3 = nn.Sequential(
-            BasicBlock(128, 256, downsample=True, stride=2),
-            BasicBlock(256, 256),
-            BasicBlock(256, 256),
-            BasicBlock(256, 256),
-            BasicBlock(256, 256),
-            BasicBlock(256, 256)
+            BasicBlock(128, 256, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu)
         )
         self.orig.layer4 = nn.Sequential(
-            BasicBlock(256, 512, downsample=True, stride=2),
-            BasicBlock(512, 512),
-            BasicBlock(512, 512)
+            BasicBlock(256, 512, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlock(512, 512, with_crelu=with_crelu),
+            BasicBlock(512, 512, with_crelu=with_crelu)
         )
         self.orig.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.orig.flatten = nn.Flatten(1)
         self.orig.fc = nn.Linear(512, 10)
-
+        with_crelu = self.with_crelu
         self.tempered = nn.Module()
         self.tempered.conv1 = ConvBatchNormRelu(
             3, 64, kernel_size=7, padding=3, stride=1, bias=False)
         self.tempered.layer1 = nn.Sequential(
-            BasicBlockTruncate(64, 64),
-            BasicBlockTruncate(64, 64),
-            BasicBlockTruncate(64, 64)
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu),
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu),
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu)
         )
         self.tempered.layer2 = nn.Sequential(
-            BasicBlockTruncate(64, 128, downsample=True, stride=2),
-            BasicBlockTruncate(128, 128),
-            BasicBlockTruncate(128, 128),
-            BasicBlockTruncate(128, 128)
+            BasicBlockTruncate(64, 128, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu)
         )
         self.tempered.layer3 = nn.Sequential(
-            BasicBlockTruncate(128, 256, downsample=True, stride=2),
-            BasicBlockTruncate(256, 256),
-            BasicBlockTruncate(256, 256),
-            BasicBlockTruncate(256, 256),
-            BasicBlockTruncate(256, 256),
-            BasicBlockTruncate(256, 256)
+            BasicBlockTruncate(128, 256, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu)
         )
         self.tempered.layer4 = nn.Sequential(
-            BasicBlockTruncate(256, 512, downsample=True, stride=2),
-            BasicBlockTruncate(512, 512),
-            BasicBlockTruncate(512, 512)
+            BasicBlockTruncate(256, 512, downsample=True, stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(512, 512, with_crelu=with_crelu),
+            BasicBlockTruncate(512, 512, with_crelu=with_crelu)
         )
         self.tempered.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.tempered.flatten = nn.Flatten(1)

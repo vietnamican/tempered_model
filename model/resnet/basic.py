@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 
-from ..base import Base, ConvBatchNormRelu
+from ..base import Base, CReLU, ConvBatchNormRelu
 
 
 class BasicBlock(Base):
@@ -13,13 +13,14 @@ class BasicBlock(Base):
         inplanes: int,
         planes: int,
         stride: int = 1,
-        downsample=False
+        downsample=False,
+        with_crelu=False
     ) -> None:
         super().__init__()
         self.downsample = downsample
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = ConvBatchNormRelu(
-            inplanes, planes, kernel_size=3, padding=1, bias=False, stride=stride)
+            inplanes, planes, kernel_size=3, padding=1, bias=False, stride=stride, with_crelu=with_crelu)
         self.conv2 = ConvBatchNormRelu(
             planes, planes, kernel_size=3, padding=1, bias=False, with_relu=False)
         if downsample:
@@ -67,16 +68,23 @@ class BasicBlockTruncate(Base):
         inplanes: int,
         planes: int,
         stride: int = 1,
-        downsample=False
+        downsample=False,
+        with_crelu=True
     ) -> None:
         super().__init__()
         self.downsample = downsample
+        self.with_crelu = with_crelu
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
+        if with_crelu:
+            planes = planes // 2
         self.conv1 = ConvBatchNormRelu(
             inplanes, planes, kernel_size=3, padding=1, bias=False, stride=stride, with_relu=False)
         self.identity_layer = ConvBatchNormRelu(
             inplanes, planes, kernel_size=1, padding=0, bias=False, stride=stride, with_relu=False)
-        self.relu = nn.ReLU(inplace=True)
+        if with_crelu:
+            self.relu = CReLU(inplace=True)
+        else:
+            self.relu = nn.ReLU(inplace=True)
         self.stride = stride
         if inplanes == planes and stride == 1:
             self.skip_layer = nn.BatchNorm2d(num_features=inplanes)

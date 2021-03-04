@@ -2,12 +2,27 @@ from typing import Dict, Iterable, List, Optional, Union
 
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 import pytorch_lightning as pl
+
+
+class CReLU(pl.LightningModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.relu = nn.ReLU(*args, **kwargs)
+
+    def forward(self, x):
+        return torch.cat((self.relu(x), self.relu(-x)), 1)
 
 
 class ConvBatchNormRelu(pl.LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        if 'with_crelu' not in kwargs:
+            self.with_crelu = False
+        else:
+            self.with_crelu = kwargs['with_crelu']
+            kwargs.pop('with_crelu', None)
         if 'with_relu' not in kwargs:
             self.with_relu = True
         else:
@@ -18,11 +33,19 @@ class ConvBatchNormRelu(pl.LightningModule):
         else:
             self.with_bn = kwargs['with_bn']
             kwargs.pop('with_bn', None)
-        self.cbr = nn.Sequential(nn.Conv2d(*args, **kwargs))
+        if self.with_crelu:
+            #outplanes
+            args = [arg for arg in args]
+            args[1] = args[1] // 2
+            
+        self.cbr = nn.Sequential(
+            nn.Conv2d(*args, **kwargs))
         if self.with_bn:
             outplanes = args[1]
             self.cbr.add_module('bacthnorm', nn.BatchNorm2d(int(outplanes)))
-        if self.with_relu:
+        if self.with_crelu:
+            self.cbr.add_module('crelu', CReLU(inplace=True))
+        elif self.with_relu:
             self.cbr.add_module('relu', nn.ReLU(inplace=True))
 
     def forward(self, x):
@@ -43,18 +66,18 @@ class Base(pl.LightningModule):
         super(Base, self).__init__()
 
     def remove_num_batches_tracked(self, state_dict):
-            new_state_dict = {}
-            for name, p in state_dict.items():
-                if not 'num_batches_tracked' in name:
-                    new_state_dict[name] = p
-            return new_state_dict
+        new_state_dict = {}
+        for name, p in state_dict.items():
+            if not 'num_batches_tracked' in name:
+                new_state_dict[name] = p
+        return new_state_dict
 
     def migrate(
             self,
             state_dict: Dict,
-            other_state_dict = None,
-            force = False
-    ): 
+            other_state_dict=None,
+            force=False
+    ):
         if other_state_dict is None:
             des_state_dict = self.state_dict()
             source_state_dict = state_dict
@@ -107,7 +130,7 @@ class Base(pl.LightningModule):
         self,
         state_dict: Dict,
         prefix: str,
-        is_remove_prefix = False
+        is_remove_prefix=False
     ):
         if not isinstance(prefix, str):
             raise BaseException('prefix', [str])
@@ -135,7 +158,7 @@ class Base(pl.LightningModule):
             if not name.startswith(prefix):
                 new_state_dict[name] = p
         return new_state_dict
-    
+
     def freeze_except_prefix(self, prefix):
         for name, p in self.named_parameters():
             if not name.startswith(prefix):
@@ -155,6 +178,7 @@ class Base(pl.LightningModule):
         for name, p in self.named_parameters():
             if name.startswith(prefix):
                 p.requires_grad = True
+
 
 class BaseSequential(nn.Sequential, Base):
     pass
