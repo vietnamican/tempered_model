@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 import pytorch_lightning as pl
 
 from ..base import Base, CReLU, ConvBatchNormRelu
@@ -74,6 +75,9 @@ class BasicBlockTruncate(Base):
         super().__init__()
         self.downsample = downsample
         self.with_crelu = with_crelu
+        self.inplanes = inplanes
+        self.planes = planes
+        self.stride = stride
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         if with_crelu:
             planes = planes // 2
@@ -94,13 +98,60 @@ class BasicBlockTruncate(Base):
         #     num_features=inplanes) if inplanes == planes and stride == 1 else None
 
     def forward(self, x):
-        if self.skip_layer is not None:
-            skip = self.skip_layer(x)
+        if self.is_release:
+            print('released')
+            x = self.forward_path(x)
         else:
-            skip = 0
-        conv3 = self.conv1(x)
-        identity = self.identity_layer(x)
+            print('not yet release')
+            if self.skip_layer is not None:
+                skip = self.skip_layer(x)
+            else:
+                skip = 0
+            conv3 = self.conv1(x)
+            identity = self.identity_layer(x)
 
-        x = conv3 + identity + skip
+            x = conv3 + identity + skip
 
         return self.relu(x)
+
+    def _fuse_bn_tensor(self, branch):
+        if isinstance(branch, nn.Sequential):
+            kernel = branch[0].weight
+            running_mean = branch.bacthnorm.running_mean
+            running_var = branch.bacthnorm.running_var
+            gamma = branch.bacthnorm.weight
+            beta = branch.bacthnorm.bias
+            eps = branch.bacthnorm.eps
+        elif isinstance(branch, nn.BatchNorm2d):
+            kernel = torch.zeros(self.inplanes, self.inplanes, 3, 3)
+            for i in range(self.inplanes):
+                kernel[i, i, 1, 1] = 1
+            running_mean = branch.running_mean
+            running_var = branch.running_var
+            gamma = branch.weight
+            beta = branch.bias
+            eps = branch.eps
+        return kernel * (gamma / (running_var + eps).sqrt()).reshape(-1, 1, 1, 1), beta - gamma / (running_var + eps).sqrt() * running_mean
+
+    def get_equivalent_kernel_bias(self):
+        kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv1.cbr)
+        kernel1x1, bias1x1 = self._fuse_bn_tensor(self.identity_layer.cbr)
+        if self.skip_layer is not None:
+            kernelskip, biasskip = self._fuse_bn_tensor(self.skip_layer)
+        else:
+            kernelskip, biasskip = 0, 0
+
+        kernel = kernel3x3 + F.pad(kernel1x1, [1, 1, 1, 1]) + kernelskip
+        bias = bias3x3 + bias1x1 + biasskip
+        conv = nn.Conv2d(
+            self.inplanes, self.planes, 3, stride=self.stride, padding=1)
+        with torch.no_grad():
+            conv.weight.copy_(kernel)
+            conv.bias.copy_(bias)
+        self.forward_path = conv
+
+    def release(self):
+        self.is_release = True
+        self.get_equivalent_kernel_bias()
+
+    # def release(self):

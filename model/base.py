@@ -64,6 +64,7 @@ class BaseException(Exception):
 class Base(pl.LightningModule):
     def __init__(self):
         super(Base, self).__init__()
+        self.is_release = False
 
     def remove_num_batches_tracked(self, state_dict):
         new_state_dict = {}

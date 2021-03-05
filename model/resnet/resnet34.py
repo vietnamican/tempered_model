@@ -9,75 +9,92 @@ from .basic import BasicBlock, BasicBlockTruncate
 from ..tempered_model import TemperedModel
 
 
-class Resnet34(TemperedModel):
-
-    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
-        super().__init__(mode, orig_module_names, tempered_module_names, is_trains)
-        self.with_crelu = with_crelu
-        with_crelu = False
-        self.orig = nn.Module()
-        self.orig.conv1 = ConvBatchNormRelu(
+class Resnet34Orig(nn.Module):
+    def __init__(self, with_crelu=False):
+        super().__init__()
+        self.conv1 = ConvBatchNormRelu(
             3, 64, kernel_size=7, padding=3, stride=1, bias=False)
-        self.orig.layer1 = nn.Sequential(
+        self.layer1 = nn.Sequential(
             BasicBlock(64, 64, with_crelu=with_crelu),
             BasicBlock(64, 64, with_crelu=with_crelu),
             BasicBlock(64, 64, with_crelu=with_crelu)
         )
-        self.orig.layer2 = nn.Sequential(
-            BasicBlock(64, 128, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer2 = nn.Sequential(
+            BasicBlock(64, 128, downsample=True,
+                       stride=2, with_crelu=with_crelu),
             BasicBlock(128, 128, with_crelu=with_crelu),
             BasicBlock(128, 128, with_crelu=with_crelu),
             BasicBlock(128, 128, with_crelu=with_crelu)
         )
-        self.orig.layer3 = nn.Sequential(
-            BasicBlock(128, 256, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer3 = nn.Sequential(
+            BasicBlock(128, 256, downsample=True,
+                       stride=2, with_crelu=with_crelu),
             BasicBlock(256, 256, with_crelu=with_crelu),
             BasicBlock(256, 256, with_crelu=with_crelu),
             BasicBlock(256, 256, with_crelu=with_crelu),
             BasicBlock(256, 256, with_crelu=with_crelu),
             BasicBlock(256, 256, with_crelu=with_crelu)
         )
-        self.orig.layer4 = nn.Sequential(
-            BasicBlock(256, 512, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer4 = nn.Sequential(
+            BasicBlock(256, 512, downsample=True,
+                       stride=2, with_crelu=with_crelu),
             BasicBlock(512, 512, with_crelu=with_crelu),
             BasicBlock(512, 512, with_crelu=with_crelu)
         )
-        self.orig.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.orig.flatten = nn.Flatten(1)
-        self.orig.fc = nn.Linear(512, 10)
-        with_crelu = self.with_crelu
-        self.tempered = nn.Module()
-        self.tempered.conv1 = ConvBatchNormRelu(
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(1)
+        self.fc = nn.Linear(512, 10)
+
+
+class Resnet34Temper(nn.Module):
+    def __init__(self, with_crelu=False):
+        super().__init__()
+        self.conv1 = ConvBatchNormRelu(
             3, 64, kernel_size=7, padding=3, stride=1, bias=False)
-        self.tempered.layer1 = nn.Sequential(
+        self.layer1 = nn.Sequential(
             BasicBlockTruncate(64, 64, with_crelu=with_crelu),
             BasicBlockTruncate(64, 64, with_crelu=with_crelu),
             BasicBlockTruncate(64, 64, with_crelu=with_crelu)
         )
-        self.tempered.layer2 = nn.Sequential(
-            BasicBlockTruncate(64, 128, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer2 = nn.Sequential(
+            BasicBlockTruncate(64, 128, downsample=True,
+                               stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu)
         )
-        self.tempered.layer3 = nn.Sequential(
-            BasicBlockTruncate(128, 256, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer3 = nn.Sequential(
+            BasicBlockTruncate(128, 256, downsample=True,
+                               stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu)
         )
-        self.tempered.layer4 = nn.Sequential(
-            BasicBlockTruncate(256, 512, downsample=True, stride=2, with_crelu=with_crelu),
+        self.layer4 = nn.Sequential(
+            BasicBlockTruncate(256, 512, downsample=True,
+                               stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(512, 512, with_crelu=with_crelu),
             BasicBlockTruncate(512, 512, with_crelu=with_crelu)
         )
-        self.tempered.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.tempered.flatten = nn.Flatten(1)
-        self.tempered.fc = nn.Linear(512, 10)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(1)
+        self.fc = nn.Linear(512, 10)
 
-        self._setup_init(mode, orig_module_names, tempered_module_names, is_trains)
+
+class Resnet34(TemperedModel):
+
+    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
+        super().__init__(mode, orig_module_names, tempered_module_names, is_trains)
+        self.with_crelu = with_crelu
+
+        self.orig = Resnet34Orig(with_crelu=with_crelu)
+
+        self.tempered = Resnet34Temper(with_crelu=with_crelu)
+
+        self._setup_init(mode, orig_module_names,
+                         tempered_module_names, is_trains)
 
     def configure_optimizers(self):
         print("---------------------------------------------------------")
@@ -115,3 +132,12 @@ class Resnet34(TemperedModel):
         self_state_dict = self.filter_state_dict_except_prefix(
             self.state_dict(), 'tempered')
         self.migrate(self_state_dict, state_dict, force=True)
+
+    def release(self):
+        is_self = True
+        for module in self.modules():
+            if is_self:
+                is_self = False
+                continue
+            if hasattr(module, 'release'):
+                module.release()

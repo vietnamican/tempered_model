@@ -232,7 +232,7 @@ class TemperedModel(Base):
                     modules.append(modules_dict[module_name])
                 self.tempered_modules.append(modules)
 
-    def release(self, name, save_weight_only=True):
+    def export(self, name, save_weight_only=True):
         if save_weight_only:
             torch.save(self.forward_path.state_dict(), name)
         else:
