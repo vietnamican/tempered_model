@@ -94,25 +94,23 @@ class BasicBlockTruncate(Base):
             self.skip_layer = nn.BatchNorm2d(num_features=inplanes)
         else:
             self.skip_layer = None
+        if self.skip_layer is not None:
+            def _forward(self, x):
+                conv3 = self.conv1(x)
+                identity = self.identity_layer(x)
+                skip = self.skip_layer(x)
+                return self.relu(conv3 + identity + skip)
+        else:
+            def _forward(self, x):
+                conv3 = self.conv1(x)
+                identity = self.identity_layer(x)
+                return self.relu(conv3 + identity)
+        self._forward = _forward
         # self.skip_layer = nn.BatchNorm2d(
         #     num_features=inplanes) if inplanes == planes and stride == 1 else None
-
+    
     def forward(self, x):
-        if self.is_release:
-            print('released')
-            x = self.forward_path(x)
-        else:
-            print('not yet release')
-            if self.skip_layer is not None:
-                skip = self.skip_layer(x)
-            else:
-                skip = 0
-            conv3 = self.conv1(x)
-            identity = self.identity_layer(x)
-
-            x = conv3 + identity + skip
-
-        return self.relu(x)
+        return self._forward(x)
 
     def _fuse_bn_tensor(self, branch):
         if isinstance(branch, nn.Sequential):
@@ -153,5 +151,8 @@ class BasicBlockTruncate(Base):
     def release(self):
         self.is_release = True
         self.get_equivalent_kernel_bias()
+        def _forward(self, x):
+            return self.relu(self.forward_path(x))
+        self._forward = _forward
 
     # def release(self):
