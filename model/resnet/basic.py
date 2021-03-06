@@ -105,7 +105,7 @@ class BasicBlockTruncate(Base):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 return self.relu(conv3 + identity)
-        self._forward = _forward
+        setattr(BasicBlockTruncate, '_forward', _forward)
         # self.skip_layer = nn.BatchNorm2d(
         #     num_features=inplanes) if inplanes == planes and stride == 1 else None
     
@@ -153,6 +153,6 @@ class BasicBlockTruncate(Base):
         self.get_equivalent_kernel_bias()
         def _forward(self, x):
             return self.relu(self.forward_path(x))
-        self._forward = _forward
+        setattr(BasicBlockTruncate, "_forward", _forward)
 
     # def release(self):
