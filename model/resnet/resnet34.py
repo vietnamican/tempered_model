@@ -46,7 +46,7 @@ class Resnet34Orig(nn.Module):
         self.fc = nn.Linear(512, 10)
 
 
-class Resnet34Temper(nn.Module):
+class Resnet34Temper(Base):
     def __init__(self, with_crelu=False):
         super().__init__()
         self.conv1 = ConvBatchNormRelu(
@@ -83,15 +83,54 @@ class Resnet34Temper(nn.Module):
         self.fc = nn.Linear(512, 10)
 
 
+class Resnet34Prun(Base):
+    def __init__(self, with_crelu=False):
+        super().__init__()
+        self.conv1 = ConvBatchNormRelu(
+            3, 64, kernel_size=7, padding=3, stride=1, bias=False)
+        self.layer1 = nn.Sequential(
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu),
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu),
+            BasicBlockTruncate(64, 64, with_crelu=with_crelu)
+        )
+        self.layer2 = nn.Sequential(
+            BasicBlockTruncate(64, 128, downsample=True,
+                               stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu)
+        )
+        self.layer3 = nn.Sequential(
+            BasicBlockTruncate(128, 256, downsample=True,
+                               stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu)
+        )
+        self.layer4 = nn.Sequential(
+            BasicBlockTruncate(256, 512, downsample=True,
+                               stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(512, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 512, with_crelu=with_crelu)
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(1)
+        self.fc = nn.Linear(512, 10)
+
+
 class Resnet34(TemperedModel):
 
     def __init__(self, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
         super().__init__(mode, orig_module_names, tempered_module_names, is_trains)
         self.with_crelu = with_crelu
 
-        self.orig = Resnet34Orig(with_crelu=with_crelu)
+        # self.orig = Resnet34Orig(with_crelu=with_crelu)
+        self.orig = Resnet34Temper(with_crelu=with_crelu)
 
-        self.tempered = Resnet34Temper(with_crelu=with_crelu)
+        # self.tempered = Resnet34Temper(with_crelu=with_crelu)
+        self.tempered = Resnet34Prun(with_crelu=with_crelu)
 
         self._setup_init(mode, orig_module_names,
                          tempered_module_names, is_trains)

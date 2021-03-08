@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -95,19 +97,19 @@ class BasicBlockTruncate(Base):
         else:
             self.skip_layer = None
         if self.skip_layer is not None:
+            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 skip = self.skip_layer(x)
                 return self.relu(conv3 + identity + skip)
         else:
+            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 return self.relu(conv3 + identity)
-        setattr(BasicBlockTruncate, '_forward', _forward)
-        # self.skip_layer = nn.BatchNorm2d(
-        #     num_features=inplanes) if inplanes == planes and stride == 1 else None
+        self._forward = partial(_forward, self)
     
     def forward(self, x):
         return self._forward(x)
@@ -153,6 +155,4 @@ class BasicBlockTruncate(Base):
         self.get_equivalent_kernel_bias()
         def _forward(self, x):
             return self.relu(self.forward_path(x))
-        setattr(BasicBlockTruncate, "_forward", _forward)
-
-    # def release(self):
+        self._forward = partial(_forward, self)
