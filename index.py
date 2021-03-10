@@ -82,6 +82,8 @@ is_trains = [
 
 device = 'cpu'
 
+
+# load data
 if device == 'tpu':
     trainset = torchvision.datasets.CIFAR10(
         root='./data', train=True, download=True, transform=transform_train)
@@ -121,15 +123,6 @@ else:
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
-
-
-def remove_module_with_prefix(state_dict, prefix='block1'):
-    new_state_dict = {}
-    for name, p in state_dict.items():
-        if not name.startswith(prefix):
-            new_state_dict[name] = p
-    return new_state_dict
-
 
 if __name__ == '__main__':
     pl.seed_everything(42)
