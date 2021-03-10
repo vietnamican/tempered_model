@@ -34,24 +34,85 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
+# orig_module_names = [
+#     'orig.conv1',
+#     'orig.layer1.0',
+#     'orig.layer1.1',
+#     'orig.layer1.2',
+#     'orig.layer2.0',
+#     'orig.layer2.1',
+#     'orig.layer2.2',
+#     'orig.layer2.3',
+#     'orig.layer3.0',
+#     'orig.layer3.1',
+#     'orig.layer3.2',
+#     'orig.layer3.3',
+#     'orig.layer3.4',
+#     'orig.layer3.5',
+#     'orig.layer4.0',
+#     'orig.layer4.1',
+#     'orig.layer4.2',
+#     'orig.avgpool',
+#     'orig.flatten',
+#     'orig.fc'
+# ]
+
+# tempered_module_names = [
+#     'tempered.conv1',
+#     'tempered.layer1.0',
+#     'tempered.layer1.1',
+#     'tempered.layer1.2',
+#     'tempered.layer2.0',
+#     'tempered.layer2.1',
+#     'tempered.layer2.2',
+#     'tempered.layer2.3',
+#     'tempered.layer3.0',
+#     'tempered.layer3.1',
+#     'tempered.layer3.2',
+#     'tempered.layer3.3',
+#     'tempered.layer3.4',
+#     'tempered.layer3.5',
+#     'tempered.layer4.0',
+#     'tempered.layer4.1',
+#     'tempered.layer4.2',
+#     'tempered.avgpool',
+#     'tempered.flatten',
+#     'tempered.fc'
+# ]
+
+# is_trains = [
+#     False,
+#     False,
+#     False,
+#     False,
+#     False,
+#     True,
+#     True,
+#     True,
+#     False,
+#     True,
+#     True,
+#     True,
+#     True,
+#     True,
+#     True,
+#     True,
+#     True,
+#     False,
+#     False,
+#     False,
+# ]
+
 orig_module_names = [
     'orig.conv1',
-    'orig.layer1.0',
-    'orig.layer1.1',
-    'orig.layer1.2',
-    'orig.layer2.0',
-    'orig.layer2.1',
-    'orig.layer2.2',
-    'orig.layer2.3',
+    'orig.layer1',
+    'orig.layer2',
     'orig.layer3.0',
-    'orig.layer3.1',
-    'orig.layer3.2',
-    'orig.layer3.3',
-    'orig.layer3.4',
+    ['orig.layer3.1', 'orig.layer3.2'],
+    ['orig.layer3.3', 'orig.layer3.4'],
     'orig.layer3.5',
     'orig.layer4.0',
-    'orig.layer4.1',
-    'orig.layer4.2',
+    ['orig.layer4.1', 'orig.layer4.2'],
     'orig.avgpool',
     'orig.flatten',
     'orig.fc'
@@ -59,22 +120,14 @@ orig_module_names = [
 
 tempered_module_names = [
     'tempered.conv1',
-    'tempered.layer1.0',
-    'tempered.layer1.1',
-    'tempered.layer1.2',
-    'tempered.layer2.0',
-    'tempered.layer2.1',
-    'tempered.layer2.2',
-    'tempered.layer2.3',
+    'tempered.layer1',
+    'tempered.layer2',
     'tempered.layer3.0',
     'tempered.layer3.1',
     'tempered.layer3.2',
     'tempered.layer3.3',
-    'tempered.layer3.4',
-    'tempered.layer3.5',
     'tempered.layer4.0',
     'tempered.layer4.1',
-    'tempered.layer4.2',
     'tempered.avgpool',
     'tempered.flatten',
     'tempered.fc'
@@ -85,18 +138,10 @@ is_trains = [
     False,
     False,
     False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    False,
-    True,
     True,
     True,
     False,
-    True,
+    False,
     True,
     False,
     False,
@@ -155,8 +200,8 @@ def remove_module_with_prefix(state_dict, prefix='block1'):
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'temper'
-    prefix_name_logs = 'resnet34_crelu/'
+    mode = 'tuning'
+    prefix_name_logs = 'resnet34/'
     if mode == 'training':
         ####################################
         ##     Training original          ##
@@ -204,19 +249,20 @@ if __name__ == '__main__':
         ###################################
         #             Temper             ##
         ###################################
-        model = Resnet34('temper', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
-        checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
-        # checkpoint_path = '{}_training_logs/version_0/checkpoints/checkpoint-epoch=199-val_acc_epoch=0.9128.ckpt'.format(prefix_name_logs)
+        model = Resnet34('temper', orig_module_names, tempered_module_names, is_trains, with_crelu=False)
+        checkpoint_path = 'export-checkpoint-epoch=99-val_acc_epoch=0.9245.ckpt'
+        # checkpoint_path = '{}_tuning_logs/version_0/checkpoints/checkpoint-epoch=56-val_acc_epoch=0.9243.ckpt'.format(prefix_name_logs)
         if device == 'cpu' or device == 'tpu':
             checkpoint = torch.load(
                 checkpoint_path, map_location=lambda storage, loc: storage)
         else:
             checkpoint = torch.load(checkpoint_path)
-        state_dict = checkpoint['state_dict']
-        model.migrate_from_torchvision(state_dict)
+        # state_dict = checkpoint['state_dict']
+        state_dict = checkpoint
+        model.orig.migrate(state_dict, force=True)
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='{}_temper_logs'.format(prefix_name_logs),
+            name='{}_temper_prun_temper_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
@@ -245,8 +291,8 @@ if __name__ == '__main__':
         ###################################
         #             Tuning             ##
         ###################################
-        model = Resnet34('tuning', orig_module_names, tempered_module_names, is_trains, with_crelu=True)
-        checkpoint_path = '{}_temper_logs/version_0/checkpoints/checkpoint-epoch=37-val_loss=0.0104.ckpt'.format(prefix_name_logs)
+        model = Resnet34('tuning', orig_module_names, tempered_module_names, is_trains, with_crelu=False)
+        checkpoint_path = '{}_temper_prun_temper_logs/version_0/checkpoints/checkpoint-epoch=81-val_loss=0.0137.ckpt'.format(prefix_name_logs)
         if device == 'cpu' or device == 'tpu':
             checkpoint = torch.load(
                 checkpoint_path, map_location=lambda storage, loc: storage)
@@ -254,9 +300,10 @@ if __name__ == '__main__':
             checkpoint = torch.load(checkpoint_path)
         state_dict = checkpoint['state_dict']
         model.migrate(state_dict)
+        # model.export('export-checkpoint-epoch=99-val_acc_epoch=0.9245.ckpt')
         logger = TensorBoardLogger(
             save_dir=os.getcwd(),
-            name='{}_tuning_logs'.format(prefix_name_logs),
+            name='{}_tuning_prun_temper_logs'.format(prefix_name_logs),
             log_graph=True
         )
         loss_callback = ModelCheckpoint(
