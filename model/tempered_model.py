@@ -1,4 +1,3 @@
-from model.resnet.resnet50 import Resnet50
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -9,8 +8,11 @@ from .base import Base, ConvBatchNormRelu
 
 class TemperedModel(Base):
 
-    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains):
+    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains):
         super().__init__()
+        self.orig = orig
+        self.tempered = tempered
+        self._setup_init(mode, orig_module_names, tempered_module_names, is_trains)
 
     def _setup_init(self, mode, orig_module_names, tempered_module_names, is_trains):
         self.mode = mode

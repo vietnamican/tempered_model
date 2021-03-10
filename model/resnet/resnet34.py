@@ -95,14 +95,14 @@ class Resnet34PrunOrig(Base):
         )
         self.layer2 = nn.Sequential(
             BasicBlock(64, 128, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu)
         )
         self.layer3 = nn.Sequential(
             BasicBlock(128, 256, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
@@ -119,6 +119,7 @@ class Resnet34PrunOrig(Base):
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
 
+
 class Resnet34Prun(Base):
     def __init__(self, with_crelu=False):
         super().__init__()
@@ -131,14 +132,14 @@ class Resnet34Prun(Base):
         )
         self.layer2 = nn.Sequential(
             BasicBlock(64, 128, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu)
         )
         self.layer3 = nn.Sequential(
             BasicBlock(128, 256, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(256, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 128, with_crelu=with_crelu),
@@ -155,6 +156,7 @@ class Resnet34Prun(Base):
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
 
+
 class Resnet34PrunTemper(Base):
     def __init__(self, with_crelu=False):
         super().__init__()
@@ -167,14 +169,14 @@ class Resnet34PrunTemper(Base):
         )
         self.layer2 = nn.Sequential(
             BasicBlock(64, 128, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu),
             BasicBlockTruncate(128, 128, with_crelu=with_crelu)
         )
         self.layer3 = nn.Sequential(
             BasicBlock(128, 256, downsample=True,
-                               stride=2, with_crelu=with_crelu),
+                       stride=2, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu),
             BasicBlockTruncate(256, 256, with_crelu=with_crelu)
@@ -187,21 +189,15 @@ class Resnet34PrunTemper(Base):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
+
+
 class Resnet34(TemperedModel):
 
-    def __init__(self, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
-        super().__init__(mode, orig_module_names, tempered_module_names, is_trains)
-        self.save_hyperparameters('mode', 'orig_module_names', 'tempered_module_names', 'is_trains', 'with_crelu')
-        self.with_crelu = with_crelu
-
-        # self.orig = Resnet34PrunOrig(with_crelu=with_crelu)
-        self.orig = Resnet34Prun(with_crelu=with_crelu)
-
-        # self.tempered = Resnet34Prun(with_crelu=with_crelu)
-        self.tempered = Resnet34PrunTemper(with_crelu=with_crelu)
-
-        self._setup_init(mode, orig_module_names,
+    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
+        super().__init__(orig, tempered, mode, orig_module_names,
                          tempered_module_names, is_trains)
+        self.save_hyperparameters(
+            'mode', 'orig_module_names', 'tempered_module_names', 'is_trains', 'with_crelu')
 
     def configure_optimizers(self):
         print("---------------------------------------------------------")
