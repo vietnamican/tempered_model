@@ -156,3 +156,4 @@ class BasicBlockTruncate(Base):
         def _forward(self, x):
             return self.relu(self.forward_path(x))
         self._forward = partial(_forward, self)
+        
