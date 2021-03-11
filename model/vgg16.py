@@ -128,4 +128,4 @@ class VGG16(TemperedModel):
                 optimizer, T_max=200)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         else:
-            print("Not in one of modes ['trianing', 'temper', 'tuning']")
+            print("Not in one of modes ['training', 'temper', 'tuning']")
