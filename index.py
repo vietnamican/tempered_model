@@ -126,194 +126,80 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'training'
+    mode = 'inference'
     prefix_name_logs = 'resnet34_index/'
+    network = Resnet34
     orig = Resnet34Prun()
     tempered = Resnet34PrunTemper()
-    if mode == 'training':
-        ####################################
-        ##     Training original          ##
-        ####################################
-        # resnet18 = torchvision.models.resnet.resnet18(pretrained=True)
-        model = Resnet34(orig, tempered, 'training',
-                         orig_module_names, tempered_module_names, is_trains)
-        # model.migrate_from_torchvision(resnet18.state_dict())
-        logger = TensorBoardLogger(
-            save_dir=os.getcwd(),
-            name='{}_training_logs'.format(prefix_name_logs),
-            log_graph=True,
-            # version=0
-        )
+    other_information_name = ''
+    if len(other_information_name) > 0:
+        log_name = '{}_{}_{}_logs'.format(
+            prefix_name_logs, mode, other_information_name)
+    else:
+        log_name = '{}_{}_logs'.format(prefix_name_logs, mode)
+    logger = TensorBoardLogger(
+        save_dir=os.getcwd(),
+        name='{}_training_logs'.format(prefix_name_logs),
+        log_graph=True,
+        # version=0
+    )
+    if mode in ['training', 'tuning']:
         loss_callback = ModelCheckpoint(
             monitor='val_loss',
             dirpath='',
             filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
-            save_top_k=-1,
+            save_top_k=10,
             mode='min',
         )
         acc_callback = ModelCheckpoint(
             monitor='val_acc_epoch',
             dirpath='',
             filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
-            save_top_k=-1,
+            save_top_k=10,
             mode='max',
         )
         lr_monitor = LearningRateMonitor(logging_interval='epoch')
-        if device == 'tpu':
-            trainer = pl.Trainer(
-                progress_bar_refresh_rate=20,
-                tpu_cores=8,
-                max_epochs=200,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback, lr_monitor]
-            )
-        else:
-            trainer = pl.Trainer(
-                max_epochs=200,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback, lr_monitor]
-            )
-        trainer.fit(model, trainloader, testloader)
-    elif mode == 'temper':
-        ###################################
-        #             Temper             ##
-        ###################################
-        model = Resnet34(orig, tempered, 'temper', orig_module_names,
-                         tempered_module_names, is_trains, with_crelu=False)
-        checkpoint_path = 'export-checkpoint-epoch=99-val_acc_epoch=0.9245.ckpt'
-        # checkpoint_path = '{}_tuning_logs/version_0/checkpoints/checkpoint-epoch=56-val_acc_epoch=0.9243.ckpt'.format(prefix_name_logs)
-        if device == 'cpu' or device == 'tpu':
-            checkpoint = torch.load(
-                checkpoint_path, map_location=lambda storage, loc: storage)
-        else:
-            checkpoint = torch.load(checkpoint_path)
-        # state_dict = checkpoint['state_dict']
-        state_dict = checkpoint
-        model.orig.migrate(state_dict, force=True)
-        logger = TensorBoardLogger(
-            save_dir=os.getcwd(),
-            name='{}_temper_prun_temper_logs'.format(prefix_name_logs),
-            log_graph=True
-        )
+        callbacks = [loss_callback, acc_callback, lr_monitor]
+    else:
         loss_callback = ModelCheckpoint(
             monitor='val_loss',
             dirpath='',
             filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
-            save_top_k=-1,
+            save_top_k=10,
             mode='min',
         )
-        if device == 'tpu':
-            trainer = pl.Trainer(
-                progress_bar_refresh_rate=20,
-                tpu_cores=8,
-                max_epochs=200,
-                logger=logger,
-                callbacks=[loss_callback]
-            )
-        else:
-            trainer = pl.Trainer(
-                max_epochs=200,
-                logger=logger,
-                callbacks=[loss_callback]
-            )
-        trainer.fit(model, trainloader, testloader)
-    elif mode == 'tuning':
-        ###################################
-        #             Tuning             ##
-        ###################################
-        model = Resnet34(orig, tempered, 'tuning', orig_module_names,
-                         tempered_module_names, is_trains, with_crelu=False)
-        checkpoint_path = '{}_temper_prun_temper_logs/version_0/checkpoints/checkpoint-epoch=81-val_loss=0.0137.ckpt'.format(
-            prefix_name_logs)
-        if device == 'cpu' or device == 'tpu':
-            checkpoint = torch.load(
-                checkpoint_path, map_location=lambda storage, loc: storage)
-        else:
-            checkpoint = torch.load(checkpoint_path)
-        state_dict = checkpoint['state_dict']
-        model.migrate(state_dict)
-        # model.export('export-checkpoint-epoch=99-val_acc_epoch=0.9245.ckpt')
-        logger = TensorBoardLogger(
-            save_dir=os.getcwd(),
-            name='{}_tuning_prun_temper_logs'.format(prefix_name_logs),
-            log_graph=True
+        lr_monitor = LearningRateMonitor(logging_interval='epoch')
+        callbacks = [loss_callback, lr_monitor]
+
+    model = network(orig, tempered, mode, orig_module_names,
+                    tempered_module_names, is_trains)
+
+    # checkpoint_path = '{}_tuning_logs/version_0/checkpoints/checkpoint-epoch=56-val_acc_epoch=0.9243.ckpt'.format(prefix_name_logs)
+    # if device == 'cpu' or device == 'tpu':
+    #     checkpoint = torch.load(
+    #         checkpoint_path, map_location=lambda storage, loc: storage)
+    # else:
+    #     checkpoint = torch.load(checkpoint_path)
+    # state_dict = checkpoint['state_dict']
+    # model.migrate(state_dict, force=True)
+
+    if device == 'tpu':
+        trainer = pl.Trainer(
+            progress_bar_refresh_rate=20,
+            tpu_cores=8,
+            max_epochs=200,
+            logger=logger,
+            callbacks=[loss_callback]
         )
-        loss_callback = ModelCheckpoint(
-            monitor='val_loss',
-            dirpath='',
-            filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
-            save_top_k=-1,
-            mode='min',
+    else:
+        trainer = pl.Trainer(
+            max_epochs=200,
+            logger=logger,
+            callbacks=[loss_callback]
         )
-        acc_callback = ModelCheckpoint(
-            monitor='val_acc_epoch',
-            dirpath='',
-            filename='checkpoint-{epoch:02d}-{val_acc_epoch:.4f}',
-            save_top_k=-1,
-            mode='min',
-        )
-        if device == 'tpu':
-            trainer = pl.Trainer(
-                progress_bar_refresh_rate=20,
-                tpu_cores=8,
-                max_epochs=100,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback]
-            )
-        else:
-            trainer = pl.Trainer(
-                max_epochs=100,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback]
-            )
-        trainer.fit(model, trainloader, testloader)
-    elif mode == 'inference':
-        ###################################
-        #            Testing             ##
-        ###################################
-        model = Resnet34(orig, tempered, 'inference', orig_module_names,
-                         tempered_module_names, is_trains, with_crelu=False)
-        # truncate_model_checkpoint_path = './resnet50_logs/version_1/checkpoints/checkpoint-epoch=24-val_acc_epoch=0.8545.ckpt'
-        # if device == 'cpu' or device == 'tpu':
-        #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path, map_location=lambda storage, loc: storage)
-        # else:
-        #     truncate_checkpoint = torch.load(truncate_model_checkpoint_path)
-        # truncate_state_dict = truncate_checkpoint['state_dict']
-        # model.migrate(truncate_state_dict)
-        logger = TensorBoardLogger(
-            save_dir=os.getcwd(),
-            name='{}_inference_logs'.format(prefix_name_logs),
-            log_graph=True
-        )
-        loss_callback = ModelCheckpoint(
-            monitor='tess_loss',
-            dirpath='',
-            filename='checkpoint-{epoch:02d}-{val_loss:.4f}',
-            save_top_k=-1,
-            mode='min',
-        )
-        acc_callback = ModelCheckpoint(
-            monitor='test_acc_epoch',
-            dirpath='',
-            filename='checkpoint-{epoch:02d}-{test_acc_epoch:.4f}',
-            save_top_k=-1,
-            mode='min',
-        )
-        if device == 'tpu':
-            trainer = pl.Trainer(
-                progress_bar_refresh_rate=20,
-                tpu_cores=8,
-                max_epochs=30,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback]
-            )
-        else:
-            trainer = pl.Trainer(
-                max_epochs=30,
-                logger=logger,
-                callbacks=[loss_callback, acc_callback]
-            )
+    if mode == 'inference':
         trainer.test(model, testloader)
+    trainer.fit(model, trainloader, testloader)
     # elif mode == 'logittuning':
     #     model = LogitTuneModel(Resnet34, orig_module_names, tempered_module_names, is_trains, device=device, checkpoint_path="")
     #     summary(model.training_model, (3, 32, 32), col_names=["input_size", "output_size", "num_params", "kernel_size", "mult_adds"])
