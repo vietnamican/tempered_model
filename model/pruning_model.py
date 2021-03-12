@@ -42,8 +42,30 @@ class PruningModel(Base):
         setattr(temp, first_name, module)
 
     def _prun(self, current_name, current_layer, next_name, next_layer):
-        self._re_assign_module(current_name, nn.Conv2d(10, 10, 3, padding=1))
-        self._re_assign_module(next_name, nn.Conv2d(10, 10, 3, padding=1))
+        # self._re_assign_module(current_name, nn.Conv2d(10, 10, 3, padding=1))
+        weight = None
+        if hasattr(current_layer, 'weight'):
+            weight = current_layer.weight
+        bias = None
+        if hasattr(current_layer, 'bias'):
+            bias = current_layer.bias
+        try:
+            print(weight.shape)
+            print(bias.shape)
+        except:
+            pass
+        dimensions = list(weight.shape)
+        epsilon = 0.3
+        sum = (weight**2).sum(dim=(1,2,3))
+        print(sum)
+        index = (sum > epsilon).nonzero(as_tuple=True)[0]
+        print(index)
+        print(index.shape)
+        weight = weight[index, ...]
+        print(weight.shape)
+        dimensions[0] = weight.shape[0]
+        self._re_assign_module(current_name, nn.Conv2d(dimensions[0], dimensions[1], (dimensions[2], dimensions[3]), padding=1))
+        # self._re_assign_module(next_name, nn.Conv2d(10, 10, 3, padding=1))
 
     def prun(self):
         current_name = None
@@ -61,3 +83,4 @@ class PruningModel(Base):
                     next_layer = module
                     next_name = name
                     self._prun(current_name, current_layer, next_name, next_layer)
+                    break
