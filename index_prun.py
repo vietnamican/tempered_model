@@ -37,4 +37,7 @@ if __name__ == "__main__":
     model = PruningModel(Resnet34Temper())
     release(model.model)
     model.prun()
-    print(model)
+    # print(model)
+    x = torch.Tensor(2, 3, 32, 32)
+    y = model(x)
+    print(y.shape)

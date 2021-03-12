@@ -81,6 +81,11 @@ class Resnet34Temper(Base):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.layer4(self.layer3(self.layer2((self.layer1(x)))))
+        return x
 
 
 class Resnet34PrunOrig(Base):
