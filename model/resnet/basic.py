@@ -97,14 +97,12 @@ class BasicBlockTruncate(Base):
         else:
             self.skip_layer = None
         if self.skip_layer is not None:
-            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 skip = self.skip_layer(x)
                 return self.relu(conv3 + identity + skip)
         else:
-            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
@@ -153,6 +151,10 @@ class BasicBlockTruncate(Base):
     def release(self):
         self.is_release = True
         self.get_equivalent_kernel_bias()
+        delattr(self, 'conv1')
+        delattr(self, 'identity_layer')
+        if hasattr(self, 'skip_layer'):
+            delattr(self, 'skip_layer')
         def _forward(self, x):
             return self.relu(self.forward_path(x))
         self._forward = partial(_forward, self)
