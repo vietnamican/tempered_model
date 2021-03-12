@@ -190,6 +190,36 @@ class Resnet34PrunTemper(Base):
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
 
+class Resnet34PrunTemperTemper(Base):
+    def __init__(self, with_crelu=False):
+        super().__init__()
+        self.conv1 = ConvBatchNormRelu(
+            3, 64, kernel_size=7, padding=3, stride=1, bias=False)
+        self.layer1 = nn.Sequential(
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu)
+        )
+        self.layer2 = nn.Sequential(
+            BasicBlock(64, 128, downsample=True,
+                       stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu),
+            BasicBlockTruncate(128, 128, with_crelu=with_crelu)
+        )
+        self.layer3 = nn.Sequential(
+            BasicBlock(128, 256, downsample=True,
+                       stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+            BasicBlockTruncate(256, 256, with_crelu=with_crelu),
+        )
+        self.layer4 = nn.Sequential(
+            BasicBlockTruncate(256, 512, downsample=True,
+                               stride=2, with_crelu=with_crelu),
+            BasicBlockTruncate(512, 512, with_crelu=with_crelu),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(1)
+        self.fc = nn.Linear(512, 10)
 
 class Resnet34(TemperedModel):
 
@@ -207,7 +237,7 @@ class Resnet34(TemperedModel):
             optimizer = torch.optim.SGD(self.parameters(), lr=0.1,
                                         momentum=0.9, weight_decay=5e-4)
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=200)
+                optimizer, T_max=100)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         elif self.mode == 'temper':
             params = []
@@ -220,13 +250,13 @@ class Resnet34(TemperedModel):
             optimizer = torch.optim.SGD(params, lr=0.01,
                                         momentum=0.9, weight_decay=5e-4)
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=200)
+                optimizer, T_max=100)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         elif self.mode == 'tuning':
             optimizer = torch.optim.SGD(self.parameters(), lr=0.001,
                                         momentum=0.9, weight_decay=5e-4)
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=200)
+                optimizer, T_max=100)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         else:
             print("Not in one of modes ['trianing', 'temper', 'tuning']")

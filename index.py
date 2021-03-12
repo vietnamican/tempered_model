@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from model.resnet.resnet34 import Resnet34, Resnet34Orig, Resnet34Prun, Resnet34PrunTemper
+from model.resnet.resnet34 import Resnet34, Resnet34Orig, Resnet34Prun, Resnet34PrunTemper, Resnet34PrunTemperTemper
 # from model.resnet.resnet50 import Resnet50, Resnet50Orig, Resnet50Temper
 from model.tempered_model import LogitTuneModel
 
@@ -38,13 +38,14 @@ transform_test = transforms.Compose([
 orig_module_names = [
     'orig.conv1',
     'orig.layer1',
-    'orig.layer2',
+    'orig.layer2.0',
+    'orig.layer2.1',
+    ['orig.layer2.2', 'orig.layer2.3'],
     'orig.layer3.0',
-    ['orig.layer3.1', 'orig.layer3.2'],
-    ['orig.layer3.3', 'orig.layer3.4'],
-    'orig.layer3.5',
+    'orig.layer3.1',
+    ['orig.layer3.2', 'orig.layer3.3'],
     'orig.layer4.0',
-    ['orig.layer4.1', 'orig.layer4.2'],
+    'orig.layer4.1',
     'orig.avgpool',
     'orig.flatten',
     'orig.fc'
@@ -53,11 +54,12 @@ orig_module_names = [
 tempered_module_names = [
     'tempered.conv1',
     'tempered.layer1',
-    'tempered.layer2',
+    'tempered.layer2.0',
+    'tempered.layer2.1',
+    'tempered.layer2.2',
     'tempered.layer3.0',
     'tempered.layer3.1',
     'tempered.layer3.2',
-    'tempered.layer3.3',
     'tempered.layer4.0',
     'tempered.layer4.1',
     'tempered.avgpool',
@@ -71,10 +73,11 @@ is_trains = [
     False,
     False,
     True,
-    True,
     False,
     False,
     True,
+    False,
+    False,
     False,
     False,
     False,
@@ -126,12 +129,12 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 if __name__ == '__main__':
     pl.seed_everything(42)
-    mode = 'inference'
-    prefix_name_logs = 'resnet34_index/'
+    mode = 'tuning'
+    prefix_name_logs = 'resnet34/'
     network = Resnet34
-    orig = Resnet34Prun()
-    tempered = Resnet34PrunTemper()
-    other_information_name = ''
+    orig = Resnet34PrunTemper()
+    tempered = Resnet34PrunTemperTemper()
+    other_information_name = 'prun_temper_temper'
     if len(other_information_name) > 0:
         log_name = '{}_{}_{}_logs'.format(
             prefix_name_logs, mode, other_information_name)
@@ -139,7 +142,7 @@ if __name__ == '__main__':
         log_name = '{}_{}_logs'.format(prefix_name_logs, mode)
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
-        name='{}_training_logs'.format(prefix_name_logs),
+        name=log_name,
         log_graph=True,
         # version=0
     )
@@ -174,32 +177,35 @@ if __name__ == '__main__':
     model = network(orig, tempered, mode, orig_module_names,
                     tempered_module_names, is_trains)
 
-    # checkpoint_path = '{}_tuning_logs/version_0/checkpoints/checkpoint-epoch=56-val_acc_epoch=0.9243.ckpt'.format(prefix_name_logs)
-    # if device == 'cpu' or device == 'tpu':
-    #     checkpoint = torch.load(
-    #         checkpoint_path, map_location=lambda storage, loc: storage)
-    # else:
-    #     checkpoint = torch.load(checkpoint_path)
-    # state_dict = checkpoint['state_dict']
-    # model.migrate(state_dict, force=True)
+    checkpoint_path = 'resnet34/_temper_prun_temper_temper_logs/version_0/checkpoints/checkpoint-epoch=99-val_loss=0.0035.ckpt'
+    # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
+    if device == 'cpu' or device == 'tpu':
+        checkpoint = torch.load(
+            checkpoint_path, map_location=lambda storage, loc: storage)
+    else:
+        checkpoint = torch.load(checkpoint_path)
+    state_dict = checkpoint['state_dict']
+    # state_dict = checkpoint
+    model.migrate(state_dict, force=True)
 
     if device == 'tpu':
         trainer = pl.Trainer(
             progress_bar_refresh_rate=20,
             tpu_cores=8,
-            max_epochs=200,
+            max_epochs=100,
             logger=logger,
-            callbacks=[loss_callback]
+            callbacks=callbacks
         )
     else:
         trainer = pl.Trainer(
-            max_epochs=200,
+            max_epochs=100,
             logger=logger,
-            callbacks=[loss_callback]
+            callbacks=callbacks
         )
     if mode == 'inference':
         trainer.test(model, testloader)
-    trainer.fit(model, trainloader, testloader)
+    else:
+        trainer.fit(model, trainloader, testloader)
     # elif mode == 'logittuning':
     #     model = LogitTuneModel(Resnet34, orig_module_names, tempered_module_names, is_trains, device=device, checkpoint_path="")
     #     summary(model.training_model, (3, 32, 32), col_names=["input_size", "output_size", "num_params", "kernel_size", "mult_adds"])
