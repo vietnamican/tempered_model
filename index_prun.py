@@ -35,25 +35,45 @@ def release(model):
         if hasattr(module, 'release'):
             module.release()
 
+block_names = [
+    'conv1',
+    'layer1.0',
+    'layer1.1',
+    'layer1.2',
+    'layer2.0',
+    'layer2.1',
+    'layer2.2',
+    'layer2.3',
+    'layer3.0',
+    'layer3.1',
+    'layer3.2',
+    'layer3.3',
+    'layer3.4',
+    'layer3.5',
+    'layer4.0',
+    'layer4.1',
+    'layer4.2',
+]
+
 if __name__ == "__main__":
-    model = Resnet34Temper()
-    # checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
-    # # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
-    # if device == 'cpu' or device == 'tpu':
-    #     checkpoint = torch.load(
-    #         checkpoint_path, map_location=lambda storage, loc: storage)
-    # else:
-    #     checkpoint = torch.load(checkpoint_path)
-    # state_dict = checkpoint['state_dict']
-    # # state_dict = checkpoint
-    # model.migrate(state_dict, force=True)
+    model = Resnet34Orig()
+    checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+    # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
+    if device == 'cpu' or device == 'tpu':
+        checkpoint = torch.load(
+            checkpoint_path, map_location=lambda storage, loc: storage)
+    else:
+        checkpoint = torch.load(checkpoint_path)
+    state_dict = checkpoint['state_dict']
+    # state_dict = checkpoint
+    model.migrate(state_dict, force=True)
     # print(model)
     model.release()
     # print(model)
-    prun_model = PruningModel(model)
+    prun_model = PruningModel(model, block_names)
     # release(model.model)
     prun_model.prun()
     print(model)
-    # x = torch.Tensor(2, 3, 32, 32)
-    # y = model(x)
-    # print(y.shape)
+    x = torch.Tensor(4, 3, 32, 32)
+    y = model(x)
+    print(y.shape)

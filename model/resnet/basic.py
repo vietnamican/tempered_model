@@ -40,8 +40,10 @@ class BasicBlock(Base):
 
         if self.downsample:
             identity = self.identity_layer(x)
-
-        out += identity
+        try:
+            out += identity
+        except:
+            pass
         out = self.relu(out)
 
         return out
@@ -62,6 +64,40 @@ class BasicBlock(Base):
                     print(i, 'copy to {} from {}'.format(name, _name))
                     p.copy_(_p)
 
+    def _prun(self, weight, epsilon=1e-5):
+        sum = (weight**2).sum(dim=(1, 2, 3))
+        epsilon = 1e-5
+        index = (sum > epsilon).nonzero(as_tuple=True)[0]
+        weight = weight[index, ...]
+        return index, weight
+
+    def prun(self, in_channels):
+        weight1 = self.conv1.cbr[0].weight
+        weight1 = weight1[:, in_channels, ...]
+        index1, weight1 = self._prun(weight1)
+        conv1 = nn.Conv2d(weight1.shape[1], weight1.shape[0],
+                          (weight1.shape[2], weight1.shape[3]), padding=1)
+        with torch.no_grad():
+            conv1.weight.copy_(weight1)
+        self.conv1.cbr[0] = conv1
+
+        weight2 = self.conv2.cbr[0].weight
+        weight2 = weight2[:, index1, ...]
+        index2, weight2 = self._prun(weight2)
+        conv2 = nn.Conv2d(weight2.shape[1], weight2.shape[0],
+                          (weight2.shape[2], weight2.shape[3]), padding=1)
+        with torch.no_grad():
+            conv2.weight.copy_(weight2)
+        self.conv2.cbr[0] = conv2
+
+        if self.downsample:
+            weight_identity = self.identity_layer.cbr[0].weight
+            weight_identity = weight_identity[index2, ...]
+            weight_identity = weight_identity[:,in_channels, ...]
+            identity_layer = nn.Conv2d(weight_identity.shape[1], weight_identity.shape[0], (
+                weight_identity.shape[2], weight_identity.shape[3]), padding=0)
+            self.identity_layer.cbr[0] = identity_layer
+        return index2
 
 class BasicBlockTruncate(Base):
     expansion: int = 1
@@ -98,6 +134,7 @@ class BasicBlockTruncate(Base):
             self.skip_layer = None
         if self.skip_layer is not None:
             print(self.skip_layer)
+
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
@@ -105,12 +142,13 @@ class BasicBlockTruncate(Base):
                 return self.relu(conv3 + identity + skip)
         else:
             print(self.skip_layer)
+
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 return self.relu(conv3 + identity)
         self._forward = partial(_forward, self)
-    
+
     def forward(self, x):
         return self._forward(x)
 
@@ -152,15 +190,16 @@ class BasicBlockTruncate(Base):
 
     def _release(self):
         self.get_equivalent_kernel_bias()
+
         def _forward(self, x):
             return self.relu(self.forward_path(x))
         self._forward = partial(_forward, self)
-        
+
         delattr(self, 'conv1')
         delattr(self, 'identity_layer')
         if hasattr(self, 'skip_layer'):
             delattr(self, 'skip_layer')
-    
+
     def release(self):
         if not self.is_released:
             self.is_released = True
@@ -172,5 +211,3 @@ class BasicBlockTruncate(Base):
                 if hasattr(module, 'release'):
                     module.release()
             self._release()
-
-        

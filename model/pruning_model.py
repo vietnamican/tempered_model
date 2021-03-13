@@ -7,9 +7,10 @@ from .base import Base, ConvBatchNormRelu
 
 
 class PruningModel(Base):
-    def __init__(self, model):
+    def __init__(self, model, block_names):
         super().__init__()
         self.model = model
+        self.block_names = block_names
 
     def forward(self, x):
         return self.model(x)
@@ -41,6 +42,16 @@ class PruningModel(Base):
                 temp = getattr(temp, node)
         setattr(temp, first_name, module)
 
+    def _get_module(self, name):
+        trace = name.split('.')
+        temp = self.model
+        for node in trace:
+            if node.isnumeric():
+                temp = temp[int(node)]
+            else:
+                temp = getattr(temp, node)
+        return temp
+
     def _prun(self, current_name, current_layer, next_name, next_layer):
 
         # reparam current_layer
@@ -51,14 +62,15 @@ class PruningModel(Base):
         if hasattr(current_layer, 'bias'):
             bias = current_layer.bias
         epsilon = .01
-        sum = (weight**2).sum(dim=(1,2,3))
+        sum = (weight**2).sum(dim=(1, 2, 3))
         mean = sum.mean()
         print(sum)
         index = (sum > mean).nonzero(as_tuple=True)[0]
         print(index)
         weight = weight[index, ...]
         dimensions = weight.shape
-        current_module = nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
+        current_module = nn.Conv2d(
+            dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
         with torch.no_grad():
             current_module.weight.copy_(weight)
             try:
@@ -67,7 +79,7 @@ class PruningModel(Base):
                 pass
         self._re_assign_module(current_name, current_module)
 
-        #reparam next_layer
+        # reparam next_layer
         weight = None
         if hasattr(next_layer, 'weight'):
             weight = next_layer.weight
@@ -76,7 +88,8 @@ class PruningModel(Base):
             bias = next_layer.bias
         weight = weight[:, index, ...]
         dimensions = weight.shape
-        next_module = nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
+        next_module = nn.Conv2d(
+            dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
         with torch.no_grad():
             next_module.weight.copy_(weight)
             try:
@@ -91,21 +104,9 @@ class PruningModel(Base):
         current_layer = None
         next_name = None
         next_layer = None
-        i = 0
-        for name, module in self.model.named_modules():
-            if isinstance(module, nn.Conv2d):
-                if next_layer is None:
-                    next_name = name
-                    next_layer = module
-                else:
-                    current_name = next_name
-                    current_layer = next_layer
-                    next_layer = module
-                    next_name = name
-                    
-                    # if i < 7:
-                    print(current_name)
-                    current_layer, next_layer = self._prun(current_name, current_layer, next_name, next_layer)
-                    # else:
-                    #     break
-                    # i +=1
+        current_index = None
+        for i in range(len(self.block_names)-1):
+            current_block = self._get_module(self.block_names[i])
+            current_index = current_block.prun(current_index)
+            print(current_index.shape)
+            self._re_assign_module(self.block_names[i], current_block)

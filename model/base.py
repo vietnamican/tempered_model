@@ -208,6 +208,31 @@ class ConvBatchNormRelu(Base):
             self.is_released = True
             self._release()
 
+    def _prun(self, weight, epsilon=1e-5):
+        sum = (weight**2).sum(dim=(1, 2, 3))
+        epsilon = 1e-5
+        index = (sum > epsilon).nonzero(as_tuple=True)[0]
+        weight = weight[index, ...]
+        return index, weight
+    # TODO Add bias
+    def prun(self, in_channels=None):
+        weight = self.cbr[0].weight
+        if in_channels is not None:
+            weight = weight[:, in_channels, ...]
+            
+        index, weight = self._prun(weight)
+
+        self.args = list(self.args)
+        # reassign inplanes
+        self.args[0] = weight.shape[1]
+        # reassign outplanes
+        self.args[1] = weight.shape[0]
+
+        self.cbr[0] = nn.Conv2d(*(self.args), **(self.kwargs))
+        with torch.no_grad():
+            self.cbr[0].weight.copy_(weight)
+        return index
+
 
 class BaseException(Exception):
     def __init__(
