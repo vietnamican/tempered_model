@@ -24,6 +24,8 @@ from model.pruning_model import PruningModel
 # from model.resnet.resnet50 import Resnet50, Resnet50Orig, Resnet50Temper
 from model.tempered_model import LogitTuneModel
 
+device = 'cpu'
+
 def release(model):
     is_self = True
     for module in model.modules():
@@ -34,10 +36,24 @@ def release(model):
             module.release()
 
 if __name__ == "__main__":
-    model = PruningModel(Resnet34Temper())
-    release(model.model)
-    model.prun()
+    model = Resnet34Temper()
+    # checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+    # # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
+    # if device == 'cpu' or device == 'tpu':
+    #     checkpoint = torch.load(
+    #         checkpoint_path, map_location=lambda storage, loc: storage)
+    # else:
+    #     checkpoint = torch.load(checkpoint_path)
+    # state_dict = checkpoint['state_dict']
+    # # state_dict = checkpoint
+    # model.migrate(state_dict, force=True)
     # print(model)
-    x = torch.Tensor(2, 3, 32, 32)
-    y = model(x)
-    print(y.shape)
+    model.release()
+    # print(model)
+    prun_model = PruningModel(model)
+    # release(model.model)
+    prun_model.prun()
+    print(model)
+    # x = torch.Tensor(2, 3, 32, 32)
+    # y = model(x)
+    # print(y.shape)

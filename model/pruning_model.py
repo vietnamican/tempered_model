@@ -50,18 +50,22 @@ class PruningModel(Base):
         bias = None
         if hasattr(current_layer, 'bias'):
             bias = current_layer.bias
-        try:
-            print(weight.shape)
-            print(bias.shape)
-        except:
-            pass
-        epsilon = 1.6
+        epsilon = .01
         sum = (weight**2).sum(dim=(1,2,3))
+        mean = sum.mean()
         print(sum)
-        index = (sum > epsilon).nonzero(as_tuple=True)[0]
+        index = (sum > mean).nonzero(as_tuple=True)[0]
+        print(index)
         weight = weight[index, ...]
         dimensions = weight.shape
-        self._re_assign_module(current_name, nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1))
+        current_module = nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
+        with torch.no_grad():
+            current_module.weight.copy_(weight)
+            try:
+                current_module.bias.copy_(bias)
+            except:
+                pass
+        self._re_assign_module(current_name, current_module)
 
         #reparam next_layer
         weight = None
@@ -70,14 +74,17 @@ class PruningModel(Base):
         bias = None
         if hasattr(next_layer, 'bias'):
             bias = next_layer.bias
-        try:
-            print(next_layer.shape)
-            print(next_layer.shape)
-        except:
-            pass
         weight = weight[:, index, ...]
         dimensions = weight.shape
-        self._re_assign_module(next_name, nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1))
+        next_module = nn.Conv2d(dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
+        with torch.no_grad():
+            next_module.weight.copy_(weight)
+            try:
+                next_module.bias.copy_(bias)
+            except:
+                pass
+        self._re_assign_module(next_name, next_module)
+        return current_module, next_module
 
     def prun(self):
         current_name = None
@@ -96,8 +103,9 @@ class PruningModel(Base):
                     next_layer = module
                     next_name = name
                     
-                    if i == 1:
-                        print(current_name)
-                        self._prun(current_name, current_layer, next_name, next_layer)
-                        break
-                    i +=1
+                    # if i < 7:
+                    print(current_name)
+                    current_layer, next_layer = self._prun(current_name, current_layer, next_name, next_layer)
+                    # else:
+                    #     break
+                    # i +=1

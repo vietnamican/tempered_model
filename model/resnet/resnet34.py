@@ -45,6 +45,23 @@ class Resnet34Orig(Base):
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
 
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+        x = self.avgpool(x)
+        x = self.flatten(x)
+        x = self.fc(x)
+        return x
+
+    def release(self):
+        is_self = True
+        for module in self.modules():
+            if is_self:
+                is_self = False
+                continue
+            if hasattr(module, 'release'):
+                module.release()
+
 
 class Resnet34Temper(Base):
     def __init__(self, with_crelu=False):
@@ -81,11 +98,23 @@ class Resnet34Temper(Base):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
-    
+
     def forward(self, x):
         x = self.conv1(x)
-        x = self.layer4(self.layer3(self.layer2((self.layer1(x)))))
+        x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+        x = self.avgpool(x)
+        x = self.flatten(x)
+        x = self.fc(x)
         return x
+
+    def release(self):
+        is_self = True
+        for module in self.modules():
+            if is_self:
+                is_self = False
+                continue
+            if hasattr(module, 'release'):
+                module.release()
 
 
 class Resnet34PrunOrig(Base):
@@ -195,6 +224,7 @@ class Resnet34PrunTemper(Base):
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
 
+
 class Resnet34PrunTemperTemper(Base):
     def __init__(self, with_crelu=False):
         super().__init__()
@@ -225,6 +255,7 @@ class Resnet34PrunTemperTemper(Base):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten(1)
         self.fc = nn.Linear(512, 10)
+
 
 class Resnet34(TemperedModel):
 
@@ -264,7 +295,7 @@ class Resnet34(TemperedModel):
                 optimizer, T_max=100)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         else:
-            print("Not in one of modes ['trianing', 'temper', 'tuning']")
+            print("Not in one of modes ['training', 'temper', 'tuning']")
 
     def migrate_from_torchvision(self, state_dict):
         self_state_dict = self.filter_state_dict_except_prefix(
