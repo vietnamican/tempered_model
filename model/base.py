@@ -6,65 +6,10 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 
 
-class CReLU(pl.LightningModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self.relu = nn.ReLU(*args, **kwargs)
-
-    def forward(self, x):
-        return torch.cat((self.relu(x), self.relu(-x)), 1)
-
-
-class ConvBatchNormRelu(pl.LightningModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        if 'with_crelu' not in kwargs:
-            self.with_crelu = False
-        else:
-            self.with_crelu = kwargs['with_crelu']
-            kwargs.pop('with_crelu', None)
-        if 'with_relu' not in kwargs:
-            self.with_relu = True
-        else:
-            self.with_relu = kwargs['with_relu']
-            kwargs.pop('with_relu', None)
-        if 'with_bn' not in kwargs:
-            self.with_bn = True
-        else:
-            self.with_bn = kwargs['with_bn']
-            kwargs.pop('with_bn', None)
-        if self.with_crelu:
-            #outplanes
-            args = [arg for arg in args]
-            args[1] = args[1] // 2
-            
-        self.cbr = nn.Sequential(
-            nn.Conv2d(*args, **kwargs))
-        if self.with_bn:
-            outplanes = args[1]
-            self.cbr.add_module('bacthnorm', nn.BatchNorm2d(int(outplanes)))
-        if self.with_crelu:
-            self.cbr.add_module('crelu', CReLU(inplace=True))
-        elif self.with_relu:
-            self.cbr.add_module('relu', nn.ReLU(inplace=True))
-
-    def forward(self, x):
-        return self.cbr(x)
-
-
-class BaseException(Exception):
-    def __init__(
-            self,
-            parameter,
-            types: List):
-        message = '{} type must be one of {}'.format(parameter, types)
-        super().__init__(message)
-
-
 class Base(pl.LightningModule):
     def __init__(self):
         super(Base, self).__init__()
-        self.is_release = False
+        self.is_released = False
 
     def remove_num_batches_tracked(self, state_dict):
         new_state_dict = {}
@@ -183,3 +128,91 @@ class Base(pl.LightningModule):
 
 class BaseSequential(nn.Sequential, Base):
     pass
+
+
+class CReLU(pl.LightningModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.relu = nn.ReLU(*args, **kwargs)
+
+    def forward(self, x):
+        return torch.cat((self.relu(x), self.relu(-x)), 1)
+
+
+class ConvBatchNormRelu(Base):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        if 'with_crelu' not in kwargs:
+            self.with_crelu = False
+        else:
+            self.with_crelu = kwargs['with_crelu']
+            kwargs.pop('with_crelu', None)
+        if 'with_relu' not in kwargs:
+            self.with_relu = True
+        else:
+            self.with_relu = kwargs['with_relu']
+            kwargs.pop('with_relu', None)
+        if 'with_bn' not in kwargs:
+            self.with_bn = True
+        else:
+            self.with_bn = kwargs['with_bn']
+            kwargs.pop('with_bn', None)
+        if self.with_crelu:
+            # outplanes
+            args = [arg for arg in args]
+            args[1] = args[1] // 2
+
+        self.args = args
+        self.kwargs = kwargs
+
+        self.cbr = nn.Sequential(
+            nn.Conv2d(*args, **kwargs))
+        if self.with_bn:
+            outplanes = args[1]
+            self.cbr.add_module('bacthnorm', nn.BatchNorm2d(int(outplanes)))
+        if self.with_crelu:
+            self.cbr.add_module('crelu', CReLU(inplace=True))
+        elif self.with_relu:
+            self.cbr.add_module('relu', nn.ReLU(inplace=True))
+
+    def forward(self, x):
+        return self.cbr(x)
+
+    def _fuse_bn_tensor(self):
+        kernel = self.cbr[0].weight
+        bias = self.cbr[0].bias
+        if bias is None:
+            bias = 0
+        running_mean = self.cbr.bacthnorm.running_mean
+        running_var = self.cbr.bacthnorm.running_var
+        gamma = self.cbr.bacthnorm.weight
+        beta = self.cbr.bacthnorm.bias
+        eps = self.cbr.bacthnorm.eps
+        return kernel * (gamma / (running_var + eps).sqrt()).reshape(-1, 1, 1, 1), beta + gamma / (running_var + eps).sqrt() * (bias - running_mean)
+
+    def _release(self):
+        if self.with_bn:
+            self.kwargs['bias'] = True
+            kernel, bias = self._fuse_bn_tensor()
+            conv = nn.Conv2d(*(self.args), **(self.kwargs))
+            with torch.no_grad():
+                conv.weight.copy_(kernel)
+                conv.bias.copy_(bias)
+            if self.with_relu:
+                self.cbr = nn.Sequential(conv, nn.ReLU(inplace=True))
+            else:
+                self.cbr = nn.Sequential(conv)
+
+    def release(self):
+        if not self.is_released:
+            self.is_released = True
+            self._release()
+
+
+class BaseException(Exception):
+    def __init__(
+            self,
+            parameter,
+            types: List):
+        message = '{} type must be one of {}'.format(parameter, types)
+        super().__init__(message)

@@ -97,12 +97,14 @@ class BasicBlockTruncate(Base):
         else:
             self.skip_layer = None
         if self.skip_layer is not None:
+            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
                 skip = self.skip_layer(x)
                 return self.relu(conv3 + identity + skip)
         else:
+            print(self.skip_layer)
             def _forward(self, x):
                 conv3 = self.conv1(x)
                 identity = self.identity_layer(x)
@@ -132,8 +134,8 @@ class BasicBlockTruncate(Base):
         return kernel * (gamma / (running_var + eps).sqrt()).reshape(-1, 1, 1, 1), beta - gamma / (running_var + eps).sqrt() * running_mean
 
     def get_equivalent_kernel_bias(self):
-        kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv1.cbr)
-        kernel1x1, bias1x1 = self._fuse_bn_tensor(self.identity_layer.cbr)
+        kernel3x3, bias3x3 = self.conv1.cbr[0].weight, self.conv1.cbr[0].bias
+        kernel1x1, bias1x1 = self.identity_layer.cbr[0].weight, self.identity_layer.cbr[0].bias
         if self.skip_layer is not None:
             kernelskip, biasskip = self._fuse_bn_tensor(self.skip_layer)
         else:
@@ -148,14 +150,27 @@ class BasicBlockTruncate(Base):
             conv.bias.copy_(bias)
         self.forward_path = conv
 
-    def release(self):
-        self.is_release = True
+    def _release(self):
         self.get_equivalent_kernel_bias()
+        def _forward(self, x):
+            return self.relu(self.forward_path(x))
+        self._forward = partial(_forward, self)
+        
         delattr(self, 'conv1')
         delattr(self, 'identity_layer')
         if hasattr(self, 'skip_layer'):
             delattr(self, 'skip_layer')
-        def _forward(self, x):
-            return self.relu(self.forward_path(x))
-        self._forward = partial(_forward, self)
+    
+    def release(self):
+        if not self.is_released:
+            self.is_released = True
+            is_self = True
+            for module in self.modules():
+                if is_self:
+                    is_self = False
+                    continue
+                if hasattr(module, 'release'):
+                    module.release()
+            self._release()
+
         
