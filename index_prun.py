@@ -56,19 +56,19 @@ block_names = [
 ]
 
 if __name__ == "__main__":
-    model = Resnet34Orig()
-    checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
-    # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
-    if device == 'cpu' or device == 'tpu':
-        checkpoint = torch.load(
-            checkpoint_path, map_location=lambda storage, loc: storage)
-    else:
-        checkpoint = torch.load(checkpoint_path)
-    state_dict = checkpoint['state_dict']
-    # state_dict = checkpoint
-    model.migrate(state_dict, force=True)
-    # print(model)
-    model.release()
+    model = Resnet34Temper()
+    # checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+    # # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'
+    # if device == 'cpu' or device == 'tpu':
+    #     checkpoint = torch.load(
+    #         checkpoint_path, map_location=lambda storage, loc: storage)
+    # else:
+    #     checkpoint = torch.load(checkpoint_path)
+    # state_dict = checkpoint['state_dict']
+    # # state_dict = checkpoint
+    # model.migrate(state_dict, force=True)
+    # # print(model)
+    # model.release()
     # print(model)
     prun_model = PruningModel(model, block_names)
     # release(model.model)

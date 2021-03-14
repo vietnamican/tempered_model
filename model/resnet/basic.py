@@ -1,4 +1,5 @@
 from functools import partial
+from tarfile import is_tarfile
 
 import torch
 from torch import nn
@@ -71,7 +72,7 @@ class BasicBlock(Base):
         weight = weight[index, ...]
         return index, weight
 
-    def prun(self, in_channels):
+    def prun(self, in_channels, is_take_prun=True):
         weight1 = self.conv1.cbr[0].weight
         weight1 = weight1[:, in_channels, ...]
         index1, weight1 = self._prun(weight1)
@@ -83,7 +84,8 @@ class BasicBlock(Base):
 
         weight2 = self.conv2.cbr[0].weight
         weight2 = weight2[:, index1, ...]
-        index2, weight2 = self._prun(weight2)
+        if is_take_prun:
+            index2, weight2 = self._prun(weight2)
         conv2 = nn.Conv2d(weight2.shape[1], weight2.shape[0],
                           (weight2.shape[2], weight2.shape[3]), padding=1)
         with torch.no_grad():
@@ -92,12 +94,17 @@ class BasicBlock(Base):
 
         if self.downsample:
             weight_identity = self.identity_layer.cbr[0].weight
-            weight_identity = weight_identity[index2, ...]
-            weight_identity = weight_identity[:,in_channels, ...]
+            weight_identity = weight_identity[:, in_channels, ...]
+            if is_take_prun:
+                weight_identity = weight_identity[index2, ...]
             identity_layer = nn.Conv2d(weight_identity.shape[1], weight_identity.shape[0], (
                 weight_identity.shape[2], weight_identity.shape[3]), padding=0)
             self.identity_layer.cbr[0] = identity_layer
-        return index2
+        if is_take_prun:
+            return index2
+        else:
+            return None
+
 
 class BasicBlockTruncate(Base):
     expansion: int = 1
@@ -187,6 +194,64 @@ class BasicBlockTruncate(Base):
             conv.weight.copy_(kernel)
             conv.bias.copy_(bias)
         self.forward_path = conv
+
+    def _prun(self, weight, epsilon=1e-5):
+        sum = (weight**2).sum(dim=(1, 2, 3))
+        epsilon = sum.mean()
+        index = (sum > epsilon).nonzero(as_tuple=True)[0]
+        weight = weight[index, ...]
+        return index, weight
+
+    def _re_assign_conv(self, weight):
+        padding = (weight.shape[2] // 2, weight.shape[3] // 2)
+        conv = nn.Conv2d(weight.shape[1], weight.shape[0], (
+            weight.shape[2], weight.shape[3]), padding=padding, bias=False, stride=self.stride)
+        with torch.no_grad():
+            conv.weight.copy_(weight)
+        return conv
+
+    def _re_assign_batchnorm(self, batchnorm, index):
+        running_mean = batchnorm.running_mean[index]
+        running_var = batchnorm.running_var[index]
+        weight = batchnorm.weight[index]
+        bias = batchnorm.bias[index]
+        eps = batchnorm.eps
+        res = nn.BatchNorm2d(index.shape[0])
+        with torch.no_grad():
+            res.running_mean.copy_(running_mean)
+            res.running_var.copy_(running_var)
+            res.weight.copy_(weight)
+            res.bias.copy_(bias)
+            res.eps = eps
+        return res
+    def prun(self, in_channels, is_take_prun=True):
+        if self.is_released:
+            pass
+        else:
+            weight1 = self.conv1.cbr[0].weight
+            weight1 = weight1[:, in_channels, ...]
+            if is_take_prun:
+                index1, weight1 = self._prun(weight1)
+                self.conv1.cbr.bacthnorm = self._re_assign_batchnorm(self.conv1.cbr.bacthnorm, index1)
+            self.conv1.cbr[0] = self._re_assign_conv(weight1)
+
+            weight_identity = self.identity_layer.cbr[0].weight
+            weight_identity = weight_identity[:, in_channels, ...]
+            if is_take_prun:
+                weight_identity = weight_identity[index1, ...]
+                self.identity_layer.cbr.bacthnorm = self._re_assign_batchnorm(self.identity_layer.cbr.bacthnorm, index1)
+            self.identity_layer.cbr[0] = self._re_assign_conv(weight_identity)
+
+            def _forward(self, x):
+                conv3 = self.conv1(x)
+                identity = self.identity_layer(x)
+                return self.relu(conv3 + identity)
+
+            self._forward = partial(_forward, self)
+        if is_take_prun:
+            return index1
+        else:
+            return None
 
     def _release(self):
         self.get_equivalent_kernel_bias()
