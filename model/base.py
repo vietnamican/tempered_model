@@ -199,40 +199,43 @@ class ConvBatchNormRelu(Base):
                 conv.weight.copy_(kernel)
                 conv.bias.copy_(bias)
             if self.with_relu:
-                self.cbr = nn.Sequential(conv, nn.ReLU(inplace=True))
+                self.cbr = nn.Sequential()
+                self.cbr.add_module('conv', conv)
+                self.cbr.add_module('relu', nn.ReLU(inplace=True))
             else:
-                self.cbr = nn.Sequential(conv)
+                self.cbr = nn.Sequential()
+                self.cbr.add_module('conv', conv)
 
     def release(self):
         if not self.is_released:
             self.is_released = True
             self._release()
 
-    def _prun(self, weight, epsilon=1e-5):
-        sum = (weight**2).sum(dim=(1, 2, 3))
-        epsilon = 1e-5
-        index = (sum > epsilon).nonzero(as_tuple=True)[0]
-        weight = weight[index, ...]
-        return index, weight
-    # TODO Add bias
+    # def _prun(self, weight, epsilon=1e-5):
+    #     sum = (weight**2).sum(dim=(1, 2, 3))
+    #     epsilon = 1e-5
+    #     index = (sum > epsilon).nonzero(as_tuple=True)[0]
+    #     weight = weight[index, ...]
+    #     return index, weight
+    # # TODO Add bias
 
-    def prun(self, in_channels=None):
-        weight = self.cbr.conv.weight
-        if in_channels is not None:
-            weight = weight[:, in_channels, ...]
+    # def prun(self, in_channels=None):
+    #     weight = self.cbr.conv.weight
+    #     if in_channels is not None:
+    #         weight = weight[:, in_channels, ...]
 
-        index, weight = self._prun(weight)
+    #     index, weight = self._prun(weight)
 
-        self.args = list(self.args)
-        # reassign inplanes
-        self.args[0] = weight.shape[1]
-        # reassign outplanes
-        self.args[1] = weight.shape[0]
+    #     self.args = list(self.args)
+    #     # reassign inplanes
+    #     self.args[0] = weight.shape[1]
+    #     # reassign outplanes
+    #     self.args[1] = weight.shape[0]
 
-        self.cbr.conv = nn.Conv2d(*(self.args), **(self.kwargs))
-        with torch.no_grad():
-            self.cbr.conv.weight.copy_(weight)
-        return index
+    #     self.cbr.conv = nn.Conv2d(*(self.args), **(self.kwargs))
+    #     with torch.no_grad():
+    #         self.cbr.conv.weight.copy_(weight)
+    #     return index
 
 
 class BaseException(Exception):
