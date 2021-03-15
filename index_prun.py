@@ -56,6 +56,7 @@ block_names = [
 ]
 
 if __name__ == "__main__":
+    pl.seed_everything(42)
     model = Resnet34Temper()
     # checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
     # # checkpoint_path = 'export-checkpoint-epoch=72-val_acc_epoch=0.9218.ckpt'

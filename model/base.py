@@ -165,11 +165,11 @@ class ConvBatchNormRelu(Base):
         self.args = args
         self.kwargs = kwargs
 
-        self.cbr = nn.Sequential(
-            nn.Conv2d(*args, **kwargs))
+        self.cbr = nn.Sequential()
+        self.cbr.add_module('conv', nn.Conv2d(*args, **kwargs))
         if self.with_bn:
             outplanes = args[1]
-            self.cbr.add_module('bacthnorm', nn.BatchNorm2d(int(outplanes)))
+            self.cbr.add_module('bn', nn.BatchNorm2d(int(outplanes)))
         if self.with_crelu:
             self.cbr.add_module('crelu', CReLU(inplace=True))
         elif self.with_relu:
@@ -179,15 +179,15 @@ class ConvBatchNormRelu(Base):
         return self.cbr(x)
 
     def _fuse_bn_tensor(self):
-        kernel = self.cbr[0].weight
-        bias = self.cbr[0].bias
+        kernel = self.cbr.conv.weight
+        bias = self.cbr.conv.bias
         if bias is None:
             bias = 0
-        running_mean = self.cbr.bacthnorm.running_mean
-        running_var = self.cbr.bacthnorm.running_var
-        gamma = self.cbr.bacthnorm.weight
-        beta = self.cbr.bacthnorm.bias
-        eps = self.cbr.bacthnorm.eps
+        running_mean = self.cbr.bn.running_mean
+        running_var = self.cbr.bn.running_var
+        gamma = self.cbr.bn.weight
+        beta = self.cbr.bn.bias
+        eps = self.cbr.bn.eps
         return kernel * (gamma / (running_var + eps).sqrt()).reshape(-1, 1, 1, 1), beta + gamma / (running_var + eps).sqrt() * (bias - running_mean)
 
     def _release(self):
@@ -215,11 +215,12 @@ class ConvBatchNormRelu(Base):
         weight = weight[index, ...]
         return index, weight
     # TODO Add bias
+
     def prun(self, in_channels=None):
-        weight = self.cbr[0].weight
+        weight = self.cbr.conv.weight
         if in_channels is not None:
             weight = weight[:, in_channels, ...]
-            
+
         index, weight = self._prun(weight)
 
         self.args = list(self.args)
@@ -228,9 +229,9 @@ class ConvBatchNormRelu(Base):
         # reassign outplanes
         self.args[1] = weight.shape[0]
 
-        self.cbr[0] = nn.Conv2d(*(self.args), **(self.kwargs))
+        self.cbr.conv = nn.Conv2d(*(self.args), **(self.kwargs))
         with torch.no_grad():
-            self.cbr[0].weight.copy_(weight)
+            self.cbr.conv.weight.copy_(weight)
         return index
 
 

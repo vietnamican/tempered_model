@@ -52,58 +52,7 @@ class PruningModel(Base):
                 temp = getattr(temp, node)
         return temp
 
-    def _prun(self, current_name, current_layer, next_name, next_layer):
-
-        # reparam current_layer
-        weight = None
-        if hasattr(current_layer, 'weight'):
-            weight = current_layer.weight
-        bias = None
-        if hasattr(current_layer, 'bias'):
-            bias = current_layer.bias
-        epsilon = .01
-        sum = (weight**2).sum(dim=(1, 2, 3))
-        mean = sum.mean()
-        print(sum)
-        index = (sum > mean).nonzero(as_tuple=True)[0]
-        print(index)
-        weight = weight[index, ...]
-        dimensions = weight.shape
-        current_module = nn.Conv2d(
-            dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
-        with torch.no_grad():
-            current_module.weight.copy_(weight)
-            try:
-                current_module.bias.copy_(bias)
-            except:
-                pass
-        self._re_assign_module(current_name, current_module)
-
-        # reparam next_layer
-        weight = None
-        if hasattr(next_layer, 'weight'):
-            weight = next_layer.weight
-        bias = None
-        if hasattr(next_layer, 'bias'):
-            bias = next_layer.bias
-        weight = weight[:, index, ...]
-        dimensions = weight.shape
-        next_module = nn.Conv2d(
-            dimensions[1], dimensions[0], (dimensions[2], dimensions[3]), padding=1)
-        with torch.no_grad():
-            next_module.weight.copy_(weight)
-            try:
-                next_module.bias.copy_(bias)
-            except:
-                pass
-        self._re_assign_module(next_name, next_module)
-        return current_module, next_module
-
     def prun(self):
-        current_name = None
-        current_layer = None
-        next_name = None
-        next_layer = None
         current_index = None
         for i in range(len(self.block_names)-1):
             current_block = self._get_module(self.block_names[i])
