@@ -101,10 +101,8 @@ class PruningModel(Base):
         # print(self)
         current_index = None
         for i in range(len(self.block_names)-1):
-            print(self.block_names[i])
             current_block = self._get_module(self.block_names[i])
             current_index = current_block.prun(current_index)
-            print(current_index.shape)
             self._reassign_module(self.block_names[i], current_block)
         current_block = self._get_module(self.block_names[-1])
         current_block.prun(current_index, is_take_prun=False)

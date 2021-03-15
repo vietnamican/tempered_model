@@ -102,7 +102,6 @@ class BasicBlockTruncate(Base):
         else:
             self.skip_layer = None
         if self.skip_layer is not None:
-            print(self.skip_layer)
 
             def _forward(self, x):
                 conv3 = self.conv1(x)
@@ -110,7 +109,6 @@ class BasicBlockTruncate(Base):
                 skip = self.skip_layer(x)
                 return self.relu(conv3 + identity + skip)
         else:
-            print(self.skip_layer)
 
             def _forward(self, x):
                 conv3 = self.conv1(x)
