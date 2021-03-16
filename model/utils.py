@@ -1,14 +1,17 @@
 from functools import partial
+from model.base import ConvBatchNormRelu
+from model.resnet.basic import BasicBlock, BasicBlockTruncate
 
 import torch
 from torch import nn
 
 def basic_block_prun(self, in_channels, is_take_prun=True):
     weight1 = self.conv1.cbr.conv.weight
-    weight1 = weight1[:, in_channels, ...]
+    if in_channels is not None:
+        weight1 = weight1[:, in_channels, ...]
     index1, weight1 = self._prun(weight1)
     conv1 = nn.Conv2d(weight1.shape[1], weight1.shape[0],
-                        (weight1.shape[2], weight1.shape[3]), padding=1)
+                        (weight1.shape[2], weight1.shape[3]), padding=1, bias=False, stride=self.stride)
     with torch.no_grad():
         conv1.weight.copy_(weight1)
         if not self.is_released:
@@ -29,13 +32,14 @@ def basic_block_prun(self, in_channels, is_take_prun=True):
 
     if self.downsample:
         weight_identity = self.identity_layer.cbr.conv.weight
-        weight_identity = weight_identity[:, in_channels, ...]
+        if in_channels is not None:
+            weight_identity = weight_identity[:, in_channels, ...]
         if is_take_prun:
             weight_identity = weight_identity[index2, ...]
             if not self.is_released:
                 self._reassign_batchnorm('identity_layer.cbr.bn', self.identity_layer.cbr.bn, index2)
         identity_layer = nn.Conv2d(weight_identity.shape[1], weight_identity.shape[0], (
-            weight_identity.shape[2], weight_identity.shape[3]), padding=0)
+            weight_identity.shape[2], weight_identity.shape[3]), padding=0, bias=False, stride=self.stride)
         self.identity_layer.cbr.conv = identity_layer
     if is_take_prun:
         return index2
@@ -85,7 +89,6 @@ def conv_batchnorm_relu_prun(self, in_channels=None):
         weight = weight[:, in_channels, ...]
 
     index, weight = self._prun(weight)
-    # print(weight.sum(dim=(1,2,3)))
 
     self.args = list(self.args)
     # reassign inplanes
@@ -101,10 +104,19 @@ def conv_batchnorm_relu_prun(self, in_channels=None):
     return index
 
 
-def lasso_group_prun(self, weight, epsilon=1e-5):
+def lasso_group_prun(self, weight, epsilon=1e-7):
     sum = (weight**2).sum(dim=(1, 2, 3))
     epsilon = sum.mean()
     # epsilon = 1e-5
     index = (sum > epsilon).nonzero(as_tuple=True)[0]
     weight = weight[index, ...]
     return index, weight
+
+config_prun = [
+    {'block_name': BasicBlock, 'prun_method': basic_block_prun,
+        'prun_algorithm': lasso_group_prun},
+    {'block_name': BasicBlockTruncate, 'prun_method': basic_block_truncate_prun,
+        'prun_algorithm': lasso_group_prun},
+    {'block_name': ConvBatchNormRelu, 'prun_method': conv_batchnorm_relu_prun,
+        'prun_algorithm': lasso_group_prun}
+]

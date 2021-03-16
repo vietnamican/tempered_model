@@ -259,9 +259,9 @@ class Resnet34PrunTemperTemper(Base):
 
 class Resnet34(TemperedModel):
 
-    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False):
+    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains, with_crelu=False, prun_module=None):
         super().__init__(orig, tempered, mode, orig_module_names,
-                         tempered_module_names, is_trains)
+                         tempered_module_names, is_trains, prun_module)
         self.save_hyperparameters(
             'mode', 'orig_module_names', 'tempered_module_names', 'is_trains', 'with_crelu')
 

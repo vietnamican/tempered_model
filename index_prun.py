@@ -27,7 +27,7 @@ from model.resnet.resnet34 import Resnet34, Resnet34Orig, Resnet34Prun, Resnet34
 from model.pruning_model import PruningModel
 # from model.resnet.resnet50 import Resnet50, Resnet50Orig, Resnet50Temper
 from model.tempered_model import LogitTuneModel
-from model.utils import basic_block_prun, basic_block_truncate_prun, conv_batchnorm_relu_prun, lasso_group_prun
+from model.utils import basic_block_prun, basic_block_truncate_prun, conv_batchnorm_relu_prun, lasso_group_prun, config_prun
 
 device = 'cpu'
 
@@ -63,14 +63,6 @@ block_names = [
 ]
 
 
-config_prun = [
-    {'block_name': BasicBlock, 'prun_method': basic_block_prun,
-        'prun_algorithm': lasso_group_prun},
-    {'block_name': BasicBlockTruncate, 'prun_method': basic_block_truncate_prun,
-        'prun_algorithm': lasso_group_prun},
-    {'block_name': ConvBatchNormRelu, 'prun_method': conv_batchnorm_relu_prun,
-        'prun_algorithm': lasso_group_prun}
-]
 if __name__ == "__main__":
     pl.seed_everything(42)
     model = Resnet34Orig()

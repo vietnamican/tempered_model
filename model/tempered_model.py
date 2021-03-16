@@ -8,11 +8,14 @@ from .base import Base, ConvBatchNormRelu
 
 class TemperedModel(Base):
 
-    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains):
+    def __init__(self, orig, tempered, mode, orig_module_names, tempered_module_names, is_trains, prun_module=None):
         super().__init__()
         self.orig = orig
         self.tempered = tempered
-        self._setup_init(mode, orig_module_names, tempered_module_names, is_trains)
+        if prun_module is not None:
+            self.prun_module = prun_module
+        self._setup_init(mode, orig_module_names,
+                         tempered_module_names, is_trains)
 
     def _setup_init(self, mode, orig_module_names, tempered_module_names, is_trains):
         self.mode = mode
@@ -20,8 +23,8 @@ class TemperedModel(Base):
         self.tempered_module_names = tempered_module_names
         self.is_trains = is_trains
         self.register_modules()
+        self._set_forward_path()
         if mode == 'training':
-            self._set_forward_path()
             self.criterion = nn.CrossEntropyLoss()
             self.accuracy = pl.metrics.Accuracy()
             self.val_accuracy = pl.metrics.Accuracy()
@@ -29,6 +32,9 @@ class TemperedModel(Base):
             self.freeze_with_prefix('tempered')
         elif mode == 'temper':
             self.criterion = nn.MSELoss()
+            self.classification_criterion = nn.CrossEntropyLoss()
+            self.val_accuracy = pl.metrics.Accuracy()
+            self.test_accuracy = pl.metrics.Accuracy()
             self.freeze_except_prefix('tempered')
             for module_names, is_train in zip(self.tempered_module_names, self.is_trains):
                 if not is_train:
@@ -38,7 +44,6 @@ class TemperedModel(Base):
                     else:
                         self.freeze_with_prefix(module_names)
         elif mode == 'inference' or mode == 'tuning':
-            self._set_forward_path()
             self.criterion = nn.CrossEntropyLoss()
             if mode == 'tuning':
                 self.accuracy = pl.metrics.Accuracy()
@@ -105,6 +110,9 @@ class TemperedModel(Base):
                 "Not in one of modes: ['training', 'temper', 'tuning', 'inference']")
             return x
 
+    def temper_forward(self, x):
+        return self.temper_forward_path(x)
+
     def training_step(self, batch, batch_idx):
         x, y = batch
         if self.mode in ['training', 'tuning']:
@@ -135,20 +143,43 @@ class TemperedModel(Base):
         elif self.mode == 'temper':
             loss = self.forward(x, 'val')
             self.log('val_loss', loss)
+            logit = self.temper_forward(x)
+            classification_loss = self.classification_criterion(logit, y)
+            pred = logit.argmax(dim=1)
+            self.log('classification_loss', classification_loss)
+            self.log('val_acc_step', self.val_accuracy(pred, y))
             return loss
 
     def validation_epoch_end(self, outs):
-        if self.mode in ['training', 'tuning']:
+        if self.mode in ['training', 'tuning', 'temper']:
             self.log('val_acc_epoch', self.val_accuracy.compute())
+
+    def _criterion(self, x, y):
+        logit = self.temper_forward(x)
+        loss = self.classification_criterion(logit, y)
+        pred = logit.argmax(dim=1)
+        return loss, pred
+
+    def _prun(self, *args, **kwargs):
+        self.prun_module.prun(*args, **kwargs)
+
+    def prun(self, *args, **kwargs):
+        self._prun(*args, **kwargs)
 
     def test_step(self, batch, batch_idx):
         x, y = batch
-        logit = self.forward(x)
-        loss = self.criterion(logit, y)
-        pred = logit.argmax(dim=1)
-        self.log('test_loss', loss)
-        self.log('test_acc_step', self.test_accuracy(pred, y))
-        return loss
+        if self.mode == 'training':
+            logit = self.forward(x)
+            loss = self.criterion(logit, y)
+            pred = logit.argmax(dim=1)
+            self.log('test_loss', loss)
+            self.log('test_acc_step', self.test_accuracy(pred, y))
+            return loss
+        elif self.mode == 'temper':
+            loss, pred = self._criterion(x, y)
+            self.log('test_loss', loss)
+            self.log('test_acc_step', self.test_accuracy(pred, y))
+            return loss
 
     def test_epoch_end(self, outputs):
         self.log('test_acc_epoch', self.test_accuracy.compute())
@@ -210,6 +241,19 @@ class TemperedModel(Base):
                 else:
                     modules.append(current_modules)
             self.forward_path = nn.Sequential(*modules)
+        elif self.mode == 'temper':
+            modules = []
+            for orig_modules, tempered_modules, is_train in zip(self.orig_modules, self.tempered_modules, self.is_trains):
+                if is_train:
+                    current_modules = tempered_modules
+                else:
+                    current_modules = orig_modules
+                if isinstance(current_modules, list):
+                    modules.extend(current_modules)
+                else:
+                    modules.append(current_modules)
+            print("set temper forward path")
+            self.temper_forward_path = nn.Sequential(*modules)
 
     def register_modules(self):
         self.orig_modules = []
