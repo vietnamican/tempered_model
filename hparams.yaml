@@ -1,0 +1,62 @@
+is_trains:
+- false
+- false
+- false
+- false
+- false
+- false
+- false
+- false
+- false
+- false
+- false
+- true
+- false
+- false
+- false
+- false
+- false
+mode: temper
+orig_module_names:
+- orig.conv1
+- orig.layer1.0
+- orig.layer1.1
+- orig.layer1.2
+- orig.layer2.0
+- orig.layer2.1
+- orig.layer2.2
+- orig.layer2.3
+- orig.layer3.0
+- - orig.layer3.1
+  - orig.layer3.2
+- orig.layer3.3
+- - orig.layer3.4
+  - orig.layer3.5
+- orig.layer4.0
+- - orig.layer4.1
+  - orig.layer4.2
+- orig.avgpool
+- orig.flatten
+- orig.fc
+tempered_module_names:
+- tempered.conv1
+- tempered.layer1.0
+- tempered.layer1.1
+- tempered.layer1.2
+- tempered.layer2.0
+- tempered.layer2.1
+- tempered.layer2.2
+- tempered.layer2.3
+- tempered.layer3.0
+- - tempered.layer3.1
+  - tempered.layer3.2
+- tempered.layer3.3
+- - tempered.layer3.4
+  - tempered.layer3.5
+- tempered.layer4.0
+- - tempered.layer4.1
+  - tempered.layer4.2
+- tempered.avgpool
+- tempered.flatten
+- tempered.fc
+with_crelu: false

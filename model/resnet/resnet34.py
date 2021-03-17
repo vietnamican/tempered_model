@@ -63,6 +63,59 @@ class Resnet34Orig(Base):
                 module.release()
 
 
+class Resnet34Orig1(Base):
+    def __init__(self, with_crelu=False):
+        super().__init__()
+        self.conv1 = ConvBatchNormRelu(
+            3, 64, kernel_size=7, padding=3, stride=1, bias=False)
+        self.layer1 = nn.Sequential(
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu),
+            BasicBlock(64, 64, with_crelu=with_crelu)
+        )
+        self.layer2 = nn.Sequential(
+            BasicBlock(64, 128, downsample=True,
+                       stride=2, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu),
+            BasicBlock(128, 128, with_crelu=with_crelu)
+        )
+        self.layer3 = nn.Sequential(
+            BasicBlock(128, 256, downsample=True,
+                       stride=2, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 256, with_crelu=with_crelu),
+            BasicBlock(256, 128, with_crelu=with_crelu),
+            BasicBlock(128, 256, with_crelu=with_crelu)
+        )
+        self.layer4 = nn.Sequential(
+            BasicBlock(256, 512, downsample=True,
+                       stride=2, with_crelu=with_crelu),
+            BasicBlock(512, 512, with_crelu=with_crelu),
+            BasicBlock(512, 512, with_crelu=with_crelu)
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(1)
+        self.fc = nn.Linear(512, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
+        x = self.avgpool(x)
+        x = self.flatten(x)
+        x = self.fc(x)
+        return x
+
+    def release(self):
+        is_self = True
+        for module in self.modules():
+            if is_self:
+                is_self = False
+                continue
+            if hasattr(module, 'release'):
+                module.release()
+
 class Resnet34Temper(Base):
     def __init__(self, with_crelu=False):
         super().__init__()

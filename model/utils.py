@@ -5,13 +5,14 @@ from model.resnet.basic import BasicBlock, BasicBlockTruncate
 import torch
 from torch import nn
 
+
 def basic_block_prun(self, in_channels, is_take_prun=True):
     weight1 = self.conv1.cbr.conv.weight
     if in_channels is not None:
         weight1 = weight1[:, in_channels, ...]
     index1, weight1 = self._prun(weight1)
     conv1 = nn.Conv2d(weight1.shape[1], weight1.shape[0],
-                        (weight1.shape[2], weight1.shape[3]), padding=1, bias=False, stride=self.stride)
+                      (weight1.shape[2], weight1.shape[3]), padding=1, bias=False, stride=self.stride)
     with torch.no_grad():
         conv1.weight.copy_(weight1)
         if not self.is_released:
@@ -25,9 +26,10 @@ def basic_block_prun(self, in_channels, is_take_prun=True):
         if not self.is_released:
             self._reassign_batchnorm('conv2.cbr.bn', self.conv2.cbr.bn, index2)
     conv2 = nn.Conv2d(weight2.shape[1], weight2.shape[0],
-                        (weight2.shape[2], weight2.shape[3]), padding=1)
+                      (weight2.shape[2], weight2.shape[3]), padding=1)
     with torch.no_grad():
         conv2.weight.copy_(weight2)
+        pass
     self.conv2.cbr.conv = conv2
 
     if self.downsample:
@@ -37,14 +39,18 @@ def basic_block_prun(self, in_channels, is_take_prun=True):
         if is_take_prun:
             weight_identity = weight_identity[index2, ...]
             if not self.is_released:
-                self._reassign_batchnorm('identity_layer.cbr.bn', self.identity_layer.cbr.bn, index2)
+                self._reassign_batchnorm(
+                    'identity_layer.cbr.bn', self.identity_layer.cbr.bn, index2)
         identity_layer = nn.Conv2d(weight_identity.shape[1], weight_identity.shape[0], (
             weight_identity.shape[2], weight_identity.shape[3]), padding=0, bias=False, stride=self.stride)
+        with torch.no_grad():
+            identity_layer.weight.copy_(weight_identity)
         self.identity_layer.cbr.conv = identity_layer
     if is_take_prun:
         return index2
     else:
         return None
+
 
 def basic_block_truncate_prun(self, in_channels, is_take_prun=True):
     if self.is_released:
@@ -69,7 +75,8 @@ def basic_block_truncate_prun(self, in_channels, is_take_prun=True):
         weight_identity = weight_identity[:, in_channels, ...]
         if is_take_prun:
             weight_identity = weight_identity[index1, ...]
-            self._reassign_batchnorm('identity_layer.cbr.bn', self.identity_layer.cbr.bn, index1)
+            self._reassign_batchnorm(
+                'identity_layer.cbr.bn', self.identity_layer.cbr.bn, index1)
         self._reassign_conv('identity_layer.cbr.conv', weight_identity)
 
         def _forward(self, x):
@@ -111,6 +118,7 @@ def lasso_group_prun(self, weight, epsilon=1e-7):
     index = (sum > epsilon).nonzero(as_tuple=True)[0]
     weight = weight[index, ...]
     return index, weight
+
 
 config_prun = [
     {'block_name': BasicBlock, 'prun_method': basic_block_prun,

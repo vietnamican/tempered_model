@@ -16,49 +16,7 @@ class TemperedModel(Base):
             self.prun_module = prun_module
         self._setup_init(mode, orig_module_names,
                          tempered_module_names, is_trains)
-
-    def _setup_init(self, mode, orig_module_names, tempered_module_names, is_trains):
-        self.mode = mode
-        self.orig_module_names = orig_module_names
-        self.tempered_module_names = tempered_module_names
-        self.is_trains = is_trains
-        self.register_modules()
-        self._set_forward_path()
-        if mode == 'training':
-            self.criterion = nn.CrossEntropyLoss()
-            self.accuracy = pl.metrics.Accuracy()
-            self.val_accuracy = pl.metrics.Accuracy()
-            self.test_accuracy = pl.metrics.Accuracy()
-            self.freeze_with_prefix('tempered')
-        elif mode == 'temper':
-            self.criterion = nn.MSELoss()
-            self.classification_criterion = nn.CrossEntropyLoss()
-            self.val_accuracy = pl.metrics.Accuracy()
-            self.test_accuracy = pl.metrics.Accuracy()
-            self.freeze_except_prefix('tempered')
-            for module_names, is_train in zip(self.tempered_module_names, self.is_trains):
-                if not is_train:
-                    if isinstance(module_names, list):
-                        for module_name in module_names:
-                            self.freeze_with_prefix(module_name)
-                    else:
-                        self.freeze_with_prefix(module_names)
-        elif mode == 'inference' or mode == 'tuning':
-            self.criterion = nn.CrossEntropyLoss()
-            if mode == 'tuning':
-                self.accuracy = pl.metrics.Accuracy()
-                self.val_accuracy = pl.metrics.Accuracy()
-            self.test_accuracy = pl.metrics.Accuracy()
-            for orig_module_names, tempered_module_names, is_train in zip(self.orig_module_names, self.tempered_module_names, self.is_trains):
-                if is_train:
-                    freeze_modules = orig_module_names
-                else:
-                    freeze_modules = tempered_module_names
-                if isinstance(freeze_modules, list):
-                    for freeze_module in freeze_modules:
-                        self.freeze_with_prefix(freeze_module)
-                else:
-                    self.freeze_with_prefix(freeze_modules)
+        self.logger.experiment.log_text(self.__str__())
 
     def _log_loss(self, phase, module_names, loss):
         name = phase + '_'
@@ -79,7 +37,7 @@ class TemperedModel(Base):
         return out
 
     def forward(self, x, phase='train'):
-        if self.mode in ['training', 'tuning', 'inference']:
+        if self.mode in ['training', 'tuning', 'inference', 'fast_tuning']:
             x = self.forward_path(x)
             return x
         elif self.mode == 'temper':
@@ -115,7 +73,7 @@ class TemperedModel(Base):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        if self.mode in ['training', 'tuning']:
+        if self.mode in ['training', 'tuning', 'fast_tuning']:
             logit = self.forward(x, 'train')
             loss = self.criterion(logit, y)
             pred = logit.argmax(dim=1)
@@ -128,12 +86,12 @@ class TemperedModel(Base):
             return loss
 
     def training_epoch_end(self, outs):
-        if self.mode in ['training', 'tuning']:
+        if self.mode in ['training', 'tuning', 'fast_tuning']:
             self.log('train_acc_epoch', self.accuracy.compute())
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        if self.mode in ['training', 'tuning']:
+        if self.mode in ['training', 'tuning', 'fast_tuning']:
             logit = self.forward(x, 'val')
             loss = self.criterion(logit, y)
             pred = logit.argmax(dim=1)
@@ -143,15 +101,10 @@ class TemperedModel(Base):
         elif self.mode == 'temper':
             loss = self.forward(x, 'val')
             self.log('val_loss', loss)
-            logit = self.temper_forward(x)
-            classification_loss = self.classification_criterion(logit, y)
-            pred = logit.argmax(dim=1)
-            self.log('classification_loss', classification_loss)
-            self.log('val_acc_step', self.val_accuracy(pred, y))
             return loss
 
     def validation_epoch_end(self, outs):
-        if self.mode in ['training', 'tuning', 'temper']:
+        if self.mode in ['training', 'tuning', 'temper', 'fast_tuning']:
             self.log('val_acc_epoch', self.val_accuracy.compute())
 
     def _criterion(self, x, y):
@@ -168,7 +121,7 @@ class TemperedModel(Base):
 
     def test_step(self, batch, batch_idx):
         x, y = batch
-        if self.mode == 'training':
+        if self.mode in ['training', 'inference', 'tuning', 'fast_tuning']:
             logit = self.forward(x)
             loss = self.criterion(logit, y)
             pred = logit.argmax(dim=1)
@@ -207,18 +160,60 @@ class TemperedModel(Base):
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=200)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
-        elif self.mode == 'tuning':
+        elif self.mode in ['tuning', 'fast_tuning']:
             optimizer = torch.optim.SGD(self.parameters(), lr=0.001,
                                         momentum=0.9, weight_decay=5e-4)
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=200)
             return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
         else:
-            print("Not in one of modes ['trianing', 'temper', 'tuning']")
+            print(
+                "Not in one of modes ['training', 'temper', 'tuning', 'fast_tuning']")
 
     def migrate(self, state_dict, *args, **kwargs):
         state_dict = self.remove_prefix_state_dict(state_dict, 'forward_path')
         super().migrate(state_dict, *args, **kwargs)
+
+    def _setup_init(self, mode, orig_module_names, tempered_module_names, is_trains):
+        self.mode = mode
+        self.orig_module_names = orig_module_names
+        self.tempered_module_names = tempered_module_names
+        self.is_trains = is_trains
+        self.register_modules()
+        self._set_forward_path()
+        self._set_criterion()
+        self._set_metrics()
+        if mode == 'training':
+            self.freeze_with_prefix('tempered')
+        elif mode == 'temper':
+            self.freeze_with_prefix('')
+            for module_names, is_train in zip(self.tempered_module_names, self.is_trains):
+                if is_train:
+                    if isinstance(module_names, list):
+                        for module_name in module_names:
+                            self.defrost_with_prefix(module_name)
+                    else:
+                        self.defrost_with_prefix(module_names)
+        elif mode in ['inference', 'tuning']:
+            for orig_module_names, tempered_module_names, is_train in zip(self.orig_module_names, self.tempered_module_names, self.is_trains):
+                if is_train:
+                    freeze_modules = orig_module_names
+                else:
+                    freeze_modules = tempered_module_names
+                if isinstance(freeze_modules, list):
+                    for freeze_module in freeze_modules:
+                        self.freeze_with_prefix(freeze_module)
+                else:
+                    self.freeze_with_prefix(freeze_modules)
+        elif mode == 'fast_tuning':
+            self.freeze_with_prefix('')
+            for module_names, is_train in zip(self.tempered_module_names, self.is_trains):
+                if is_train:
+                    if isinstance(module_names, list):
+                        for module_name in module_names:
+                            self.defrost_with_prefix(module_name)
+                    else:
+                        self.defrost_with_prefix(module_names)
 
     def _set_forward_path(self):
         if self.mode == 'training':
@@ -229,7 +224,7 @@ class TemperedModel(Base):
                 else:
                     modules.append(orig_modules)
             self.forward_path = nn.Sequential(*modules)
-        elif self.mode == 'tuning' or self.mode == 'inference':
+        elif self.mode in ['tuning', 'inference', 'fast_tuning']:
             modules = []
             for orig_modules, tempered_modules, is_train in zip(self.orig_modules, self.tempered_modules, self.is_trains):
                 if is_train:
@@ -254,6 +249,22 @@ class TemperedModel(Base):
                     modules.append(current_modules)
             print("set temper forward path")
             self.temper_forward_path = nn.Sequential(*modules)
+
+    def _set_criterion(self):
+        criterions = {
+            'training': nn.CrossEntropyLoss(),
+            'temper': nn.MSELoss(),
+            'tuning': nn.CrossEntropyLoss(),
+            'inference': nn.CrossEntropyLoss(),
+            'fast_tuning': nn.CrossEntropyLoss()
+        }
+        self.criterion = criterions[self.mode]
+
+    def _set_metrics(self):
+        if self.mode in ['training', 'tuning', 'inference', 'fast_tuning']:
+            self.accuracy = pl.metrics.Accuracy()
+            self.val_accuracy = pl.metrics.Accuracy()
+            self.test_accuracy = pl.metrics.Accuracy()
 
     def register_modules(self):
         self.orig_modules = []

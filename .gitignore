@@ -133,3 +133,6 @@ data/
 test.py
 checkpoint*
 export*
+index.err
+index.out
+*.bsub

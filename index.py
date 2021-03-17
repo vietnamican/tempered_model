@@ -20,7 +20,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from model.resnet.resnet34 import Resnet34, Resnet34Orig, Resnet34Prun, Resnet34PrunTemper, Resnet34PrunTemperTemper, Resnet34Temper
+from model.resnet.resnet34 import Resnet34, Resnet34Orig, Resnet34Orig1, Resnet34Prun, Resnet34PrunTemper, Resnet34PrunTemperTemper, Resnet34Temper
 # from model.resnet.resnet50 import Resnet50, Resnet50Orig, Resnet50Temper
 from model.tempered_model import LogitTuneModel
 from model.utils import config_prun
@@ -219,7 +219,7 @@ if __name__ == '__main__':
         log_graph=True,
         # version=0
     )
-    if mode in ['training', 'tuning', 'temper']:
+    if mode in ['training', 'tuning', 'stable_tuning']:
         loss_callback = ModelCheckpoint(
             monitor='val_loss',
             dirpath='',
@@ -252,16 +252,27 @@ if __name__ == '__main__':
 
     # checkpoint_path = 'resnet34/_temper_prun_temper_temper_logs/version_0/checkpoints/checkpoint-epoch=99-val_loss=0.0035.ckpt'
     checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+    # checkpoint_path = 'resnet34_prun/_temper_logs/version_2/checkpoints/checkpoint-epoch=00-val_loss=0.0040.ckpt'
     if device == 'cpu' or device == 'tpu':
         checkpoint = torch.load(
             checkpoint_path, map_location=lambda storage, loc: storage)
     else:
         checkpoint = torch.load(checkpoint_path)
     state_dict = checkpoint['state_dict']
-    # state_dict = checkpoint
+    model.migrate(state_dict)
     model.orig.migrate(state_dict, force=True)
     model.tempered.migrate(state_dict, force=True)
     model.prun(tempered, block_names)
+    
+    # # checkpoint_path = 'checkpoint-epoch=199-val_acc_epoch=0.9254.ckpt'
+    # checkpoint_path = 'resnet34_prun/_temper_logs/version_2/checkpoints/checkpoint-epoch=93-val_loss=0.0039.ckpt'
+    # if device == 'cpu' or device == 'tpu':
+    #     checkpoint = torch.load(
+    #         checkpoint_path, map_location=lambda storage, loc: storage)
+    # else:
+    #     checkpoint = torch.load(checkpoint_path)
+    # state_dict = checkpoint['state_dict']
+    # model.migrate(state_dict)
     print(model.temper_forward_path)
     if device == 'tpu':
         trainer = pl.Trainer(
@@ -277,6 +288,7 @@ if __name__ == '__main__':
             logger=logger,
             callbacks=callbacks
         )
+    # trainer.test(model, testloader)
     if mode == 'inference':
         trainer.test(model, testloader)
     else:
